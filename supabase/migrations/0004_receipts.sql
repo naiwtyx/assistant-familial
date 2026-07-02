@@ -63,7 +63,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $save_receipt$
 declare
   v_receipt_id uuid;
 begin
@@ -89,4 +89,4 @@ begin
 
   return v_receipt_id;
 end;
-$$;
+$save_receipt$;
