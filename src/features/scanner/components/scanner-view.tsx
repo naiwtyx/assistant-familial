@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Loader2, Package } from "lucide-react";
+import { Camera, Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
@@ -8,11 +8,24 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { PRODUCT_CATEGORIES } from "@/config/constants";
+import { useSaveReceipt } from "@/features/budget/hooks/use-budget";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 import { useAddScannedItems } from "@/features/inventory/hooks/use-inventory";
 import { getErrorMessage } from "@/lib/get-error-message";
 
-type ScanItem = { name: string; quantity: number; selected: boolean };
+type ScanItem = {
+  name: string;
+  quantity: number;
+  price: number;
+  category: string;
+  selected: boolean;
+};
+
+type ReceiptMeta = { store: string | null; date: string | null; total: number | null };
+
+const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 /** Redimensionne l'image côté client (moins de données envoyées, analyse plus rapide). */
 function fileToDownscaledDataUrl(file: File, maxSize = 1200): Promise<string> {
@@ -47,11 +60,15 @@ export function ScannerView() {
   const family = useActiveFamily();
   const router = useRouter();
   const addScanned = useAddScannedItems(family.id);
+  const saveReceipt = useSaveReceipt(family.id);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [image, setImage] = useState<string | null>(null);
   const [items, setItems] = useState<ScanItem[] | null>(null);
+  const [meta, setMeta] = useState<ReceiptMeta | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const isSaving = saveReceipt.isPending || addScanned.isPending;
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -60,6 +77,7 @@ export function ScannerView() {
       const dataUrl = await fileToDownscaledDataUrl(file);
       setImage(dataUrl);
       setItems(null);
+      setMeta(null);
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -75,7 +93,10 @@ export function ScannerView() {
         body: JSON.stringify({ imageBase64: image }),
       });
       const data = (await response.json()) as {
-        items?: { name: string; quantity: number }[];
+        store?: string | null;
+        date?: string | null;
+        total?: number | null;
+        items?: { name: string; quantity: number; price?: number; category?: string }[];
         error?: string;
       };
       if (!response.ok || data.error) {
@@ -84,12 +105,15 @@ export function ScannerView() {
       const detected: ScanItem[] = (data.items ?? []).map((item) => ({
         name: item.name,
         quantity: item.quantity,
+        price: item.price ?? 0,
+        category: item.category ?? "other",
         selected: true,
       }));
       if (detected.length === 0) {
         toast.info("Aucun produit détecté sur le ticket.");
       }
       setItems(detected);
+      setMeta({ store: data.store ?? null, date: data.date ?? null, total: data.total ?? null });
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -101,25 +125,43 @@ export function ScannerView() {
     setItems((prev) => (prev ? prev.map((item, i) => (i === index ? { ...item, ...patch } : item)) : prev));
   }
 
-  function addToInventory() {
-    const selected = (items ?? []).filter((item) => item.selected && item.name.trim());
-    if (selected.length === 0) {
-      toast.error("Sélectionne au moins un produit.");
+  async function save() {
+    const all = (items ?? []).filter((item) => item.name.trim());
+    if (all.length === 0) {
+      toast.error("Aucun produit à enregistrer.");
       return;
     }
-    addScanned.mutate(
-      selected.map((item) => ({ name: item.name.trim(), quantity: item.quantity })),
-      {
-        onSuccess: () => {
-          toast.success(`${selected.length} produit(s) ajouté(s) à l'inventaire`);
-          router.push("/inventaire");
-        },
-        onError: (error) => toast.error(getErrorMessage(error)),
-      },
-    );
-  }
+    const total = meta?.total ?? all.reduce((sum, item) => sum + (item.price || 0), 0);
+    const selected = all.filter((item) => item.selected);
 
-  const selectedCount = items?.filter((item) => item.selected).length ?? 0;
+    try {
+      // Le budget enregistre TOUT le ticket ; l'inventaire ne reçoit que les cochés.
+      await saveReceipt.mutateAsync({
+        store: meta?.store ?? null,
+        date: meta?.date ?? null,
+        total,
+        items: all.map((item) => ({
+          name: item.name.trim(),
+          quantity: item.quantity,
+          category: item.category || null,
+          price: item.price || 0,
+        })),
+      });
+
+      if (selected.length > 0) {
+        await addScanned.mutateAsync(
+          selected.map((item) => ({ name: item.name.trim(), quantity: item.quantity })),
+        );
+      }
+
+      toast.success(
+        `Dépense enregistrée${selected.length > 0 ? ` · ${selected.length} produit(s) ajouté(s) à l'inventaire` : ""}`,
+      );
+      router.push("/inventaire");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
@@ -129,7 +171,7 @@ export function ScannerView() {
           Scanner un ticket
         </h1>
         <p className="text-muted-foreground text-sm">
-          Prends ton ticket de caisse en photo, l&apos;IA en extrait les produits.
+          L&apos;IA lit les produits et les prix pour l&apos;inventaire et le budget.
         </p>
       </header>
 
@@ -144,7 +186,7 @@ export function ScannerView() {
 
       {image ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={image} alt="Aperçu du ticket" className="max-h-64 w-full rounded-xl border object-contain" />
+        <img src={image} alt="Aperçu du ticket" className="max-h-56 w-full rounded-xl border object-contain" />
       ) : null}
 
       <div className="flex gap-2">
@@ -166,37 +208,82 @@ export function ScannerView() {
 
       {items && items.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <p className="text-muted-foreground text-xs font-medium uppercase">Produits détectés</p>
-          <ul className="divide-border divide-y">
+          <div className="flex items-center justify-between">
+            <p className="text-muted-foreground text-xs font-medium uppercase">
+              {meta?.store ?? "Produits détectés"}
+            </p>
+            {meta?.total != null ? (
+              <p className="text-sm font-medium tabular-nums">{euro.format(meta.total)}</p>
+            ) : null}
+          </div>
+
+          <ul className="flex flex-col gap-2">
             {items.map((item, index) => (
-              <li key={index} className="flex items-center gap-2 py-2">
-                <Checkbox
-                  checked={item.selected}
-                  onCheckedChange={(checked) => updateItem(index, { selected: checked === true })}
-                  aria-label={`Sélectionner ${item.name}`}
-                />
-                <Input
-                  value={item.name}
-                  onChange={(event) => updateItem(index, { name: event.target.value })}
-                  className="h-8 flex-1"
-                  aria-label="Nom du produit"
-                />
-                <Input
-                  type="number"
-                  min={1}
-                  value={item.quantity}
-                  onChange={(event) =>
-                    updateItem(index, { quantity: Math.max(1, Number(event.target.value) || 1) })
-                  }
-                  className="h-8 w-16 text-center"
-                  aria-label="Quantité"
-                />
+              <li key={index} className="rounded-lg border p-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={item.selected}
+                    onCheckedChange={(checked) => updateItem(index, { selected: checked === true })}
+                    aria-label="Ajouter à l'inventaire"
+                  />
+                  <Input
+                    value={item.name}
+                    onChange={(event) => updateItem(index, { name: event.target.value })}
+                    className="h-8 flex-1"
+                    aria-label="Nom du produit"
+                  />
+                </div>
+                <div className="mt-2 flex items-center gap-2 pl-6">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={item.quantity}
+                    onChange={(event) =>
+                      updateItem(index, { quantity: Math.max(1, Number(event.target.value) || 1) })
+                    }
+                    className="h-8 w-14 text-center"
+                    aria-label="Quantité"
+                  />
+                  <div className="relative w-20">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={item.price}
+                      onChange={(event) =>
+                        updateItem(index, { price: Math.max(0, Number(event.target.value) || 0) })
+                      }
+                      className="h-8 pr-5 text-right"
+                      aria-label="Prix"
+                    />
+                    <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs">
+                      €
+                    </span>
+                  </div>
+                  <NativeSelect
+                    value={item.category}
+                    onChange={(event) => updateItem(index, { category: event.target.value })}
+                    className="h-8 flex-1"
+                    aria-label="Catégorie"
+                  >
+                    {PRODUCT_CATEGORIES.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
               </li>
             ))}
           </ul>
-          <Button onClick={addToInventory} disabled={addScanned.isPending || selectedCount === 0}>
-            <Package className="size-4" />
-            Ajouter à l&apos;inventaire ({selectedCount})
+
+          <p className="text-muted-foreground text-xs">
+            Coché = ajouté à l&apos;inventaire. La dépense enregistre tout le ticket.
+          </p>
+
+          <Button onClick={save} disabled={isSaving}>
+            {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            Enregistrer
           </Button>
         </div>
       ) : null}

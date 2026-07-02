@@ -3,19 +3,24 @@ import "server-only";
 import type Groq from "groq-sdk";
 import { z } from "zod";
 
+import { PRODUCT_CATEGORIES } from "@/config/constants";
+
 /**
- * Extraction des produits d'un ticket de caisse via un modèle vision (Groq).
- * Implémente le contrat prévu dans `types.ts` — sans dépendance à un fournisseur
- * dans le reste de l'app (l'UI ne voit que le résultat structuré).
+ * Extraction des produits d'un ticket de caisse via un modèle vision (Groq) :
+ * nom, quantité, prix et catégorie — pour alimenter l'inventaire ET le budget.
  */
 
 export const receiptSchema = z.object({
-  store: z.string().nullable().optional(),
+  store: z.string().nullable().optional().catch(null),
+  date: z.string().nullable().optional().catch(null),
+  total: z.number().nonnegative().max(999999).nullable().optional().catch(null),
   items: z
     .array(
       z.object({
         name: z.string().min(1).max(120),
         quantity: z.number().positive().max(999).catch(1),
+        price: z.number().nonnegative().max(99999).catch(0),
+        category: z.string().max(40).optional().catch(undefined),
       }),
     )
     .default([]),
@@ -23,20 +28,23 @@ export const receiptSchema = z.object({
 
 export type ParsedReceipt = z.infer<typeof receiptSchema>;
 
+const CATEGORY_LIST = PRODUCT_CATEGORIES.map((c) => `${c.value} = ${c.label}`).join("\n");
+
 const PROMPT = `Tu analyses la photo d'un ticket de caisse.
-Extrais uniquement la liste des PRODUITS achetés.
 Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte ni balise autour, au format :
-{"store": "<nom du magasin ou null>", "items": [{"name": "<nom complet du produit en français>", "quantity": <nombre entier>}]}
+{"store": "<magasin ou null>", "date": "<AAAA-MM-JJ ou null>", "total": <nombre ou null>, "items": [{"name": "<nom complet en français>", "quantity": <entier>, "price": <prix TOTAL de la ligne en euros>, "category": "<valeur de catégorie>"}]}
 
-IMPORTANT — noms des produits :
-- Développe les abréviations en noms COMPLETS, courants et génériques en français.
-  Exemples : "LT 1/2 ECR" → "Lait demi-écrémé" ; "YAO NAT X4" → "Yaourt nature" ;
-  "PN COMPLET" → "Pain complet" ; "CAFE MOUL 250G" → "Café moulu" ;
-  "BAN" → "Bananes" ; "TOM CERISE" → "Tomates cerises".
-- Utilise un nom simple, comme on le retaperait naturellement pour faire ses courses.
-- N'inclus pas la marque, ni les codes, ni le poids/prix dans le nom.
+RÈGLES :
+- name : développe les abréviations en noms COMPLETS, génériques, en français.
+  Ex. "LT 1/2 ECR" → "Lait demi-écrémé" ; "PN COMPLET" → "Pain complet" ;
+  "BAN" → "Bananes" ; "CAFE MOUL 250G" → "Café moulu". Pas de marque, code ni poids.
+- price : le prix payé pour cette ligne, en euros (nombre, ex. 2.30).
+- category : choisis la VALEUR (colonne de gauche) la plus adaptée parmi :
+${CATEGORY_LIST}
+- total : le montant total payé du ticket.
+- date : la date d'achat au format AAAA-MM-JJ si visible, sinon null.
 
-Ignore les lignes de total, sous-total, TVA, remises, points de fidélité et moyens de paiement.
+Ignore les lignes total/sous-total/TVA/remise/fidélité/paiement (elles ne sont PAS des items).
 Regroupe les quantités identiques. Si aucun produit n'est lisible, renvoie "items": [].`;
 
 /** Isole l'objet JSON même si le modèle l'entoure de texte ou de balises Markdown. */

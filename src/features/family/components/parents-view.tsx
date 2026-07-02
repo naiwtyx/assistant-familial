@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { BudgetDashboard } from "@/features/budget/components/budget-dashboard";
+
 import { useMyMembership } from "./family-provider";
 import { MemberManagement } from "./member-management";
 import { isAuthorized } from "../lib/roles";
@@ -48,6 +50,7 @@ export function ParentsView() {
         famille.
       </div>
 
+      <BudgetDashboard familyId={family.id} />
       <MemberManagement familyId={family.id} />
     </main>
   );
