@@ -12,19 +12,18 @@ import { createClient } from "@/lib/supabase/server";
 export default async function WithFamilyLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Requêtes lancées en parallèle pour réduire la latence (surtout en production).
+  const [userResult, familiesResult] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("families").select("*").order("created_at", { ascending: true }),
+  ]);
+
+  const user = userResult.data.user;
   if (!user) {
     redirect("/login");
   }
 
-  const { data: families } = await supabase
-    .from("families")
-    .select("*")
-    .order("created_at", { ascending: true });
-
-  const activeFamily = families?.[0];
+  const activeFamily = familiesResult.data?.[0];
   if (!activeFamily) {
     redirect("/onboarding");
   }
