@@ -1,6 +1,5 @@
+import { normalizeName } from "@/lib/normalize";
 import type { InventoryItem } from "@/types/db";
-
-import { normalizeName } from "./normalize";
 
 export type ComparisonStatus = "in_stock" | "partial" | "missing";
 

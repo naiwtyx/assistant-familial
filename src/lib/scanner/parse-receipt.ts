@@ -26,7 +26,16 @@ export type ParsedReceipt = z.infer<typeof receiptSchema>;
 const PROMPT = `Tu analyses la photo d'un ticket de caisse.
 Extrais uniquement la liste des PRODUITS achetés.
 Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte ni balise autour, au format :
-{"store": "<nom du magasin ou null>", "items": [{"name": "<nom lisible du produit en français>", "quantity": <nombre entier>}]}
+{"store": "<nom du magasin ou null>", "items": [{"name": "<nom complet du produit en français>", "quantity": <nombre entier>}]}
+
+IMPORTANT — noms des produits :
+- Développe les abréviations en noms COMPLETS, courants et génériques en français.
+  Exemples : "LT 1/2 ECR" → "Lait demi-écrémé" ; "YAO NAT X4" → "Yaourt nature" ;
+  "PN COMPLET" → "Pain complet" ; "CAFE MOUL 250G" → "Café moulu" ;
+  "BAN" → "Bananes" ; "TOM CERISE" → "Tomates cerises".
+- Utilise un nom simple, comme on le retaperait naturellement pour faire ses courses.
+- N'inclus pas la marque, ni les codes, ni le poids/prix dans le nom.
+
 Ignore les lignes de total, sous-total, TVA, remises, points de fidélité et moyens de paiement.
 Regroupe les quantités identiques. Si aucun produit n'est lisible, renvoie "items": [].`;
 

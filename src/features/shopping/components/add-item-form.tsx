@@ -1,23 +1,29 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { unitLabel } from "@/config/constants";
+import { useInventory } from "@/features/inventory/hooks/use-inventory";
+import { findInventoryMatches } from "@/features/inventory/lib/find-inventory-matches";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 import { useAddShoppingItem } from "../hooks/use-shopping-list";
 
 /**
- * Formulaire d'ajout rapide. Volontairement simple (nom + quantité) pour une
- * saisie fluide : l'article apparaît immédiatement grâce à la mutation optimiste.
+ * Formulaire d'ajout rapide (nom + quantité). Affiche un rappel si le produit
+ * saisi existe déjà dans l'inventaire, avec la quantité restante.
  */
 export function AddItemForm({ familyId }: { familyId: string }) {
   const addItem = useAddShoppingItem(familyId);
+  const { data: inventory } = useInventory(familyId);
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState(1);
+
+  const matches = findInventoryMatches(name, inventory ?? []).slice(0, 2);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -33,27 +39,44 @@ export function AddItemForm({ familyId }: { familyId: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder="Ajouter un article…"
-        aria-label="Nom de l'article"
-        autoComplete="off"
-        className="flex-1"
-      />
-      <Input
-        type="number"
-        min={1}
-        max={9999}
-        value={quantity}
-        onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
-        aria-label="Quantité"
-        className="w-16 text-center"
-      />
-      <Button type="submit" size="icon" disabled={!name.trim()} aria-label="Ajouter l'article">
-        <Plus className="size-4" />
-      </Button>
-    </form>
+    <div className="flex flex-col gap-2">
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Ajouter un article…"
+          aria-label="Nom de l'article"
+          autoComplete="off"
+          className="flex-1"
+        />
+        <Input
+          type="number"
+          min={1}
+          max={9999}
+          value={quantity}
+          onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+          aria-label="Quantité"
+          className="w-16 text-center"
+        />
+        <Button type="submit" size="icon" disabled={!name.trim()} aria-label="Ajouter l'article">
+          <Plus className="size-4" />
+        </Button>
+      </form>
+
+      {matches.length > 0 ? (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          <Package className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Déjà en stock :{" "}
+            {matches
+              .map(
+                (item) =>
+                  `${item.name} (${item.quantity}${item.unit ? ` ${unitLabel(item.unit)}` : ""})`,
+              )
+              .join(", ")}
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
