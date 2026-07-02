@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 
-import { useActiveFamily } from "./family-provider";
+import { useMyMembership } from "./family-provider";
 import { FamilyMembersList } from "./family-members-list";
 import { InviteCard } from "./invite-card";
 
@@ -16,8 +16,8 @@ const SHORTCUTS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
 
-export function DashboardView({ userEmail }: { userEmail: string | undefined }) {
-  const family = useActiveFamily();
+export function DashboardView() {
+  const { family, email } = useMyMembership();
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 p-6">
@@ -25,7 +25,7 @@ export function DashboardView({ userEmail }: { userEmail: string | undefined }) 
         <div className="min-w-0">
           <p className="text-muted-foreground text-sm">Famille</p>
           <h1 className="truncate text-xl font-bold tracking-tight">{family.name}</h1>
-          {userEmail ? <p className="text-muted-foreground truncate text-xs">{userEmail}</p> : null}
+          {email ? <p className="text-muted-foreground truncate text-xs">{email}</p> : null}
         </div>
         <SignOutButton />
       </header>

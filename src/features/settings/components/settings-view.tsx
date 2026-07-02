@@ -13,8 +13,8 @@ import { ROLE_LABELS, isAuthorized } from "@/features/family/lib/roles";
 
 import { NotificationSettings } from "./notification-settings";
 
-export function SettingsView({ userEmail }: { userEmail?: string }) {
-  const { family, role } = useMyMembership();
+export function SettingsView() {
+  const { family, role, email } = useMyMembership();
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
@@ -58,7 +58,7 @@ export function SettingsView({ userEmail }: { userEmail?: string }) {
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm">{userEmail}</p>
+            <p className="truncate text-sm">{email}</p>
             <p className="text-muted-foreground text-xs">
               {ROLE_LABELS[role]} · {family.name}
             </p>

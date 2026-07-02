@@ -15,6 +15,7 @@ type FamilyContextValue = {
   family: Family;
   role: FamilyRole;
   userId: string;
+  email: string | null;
 };
 
 const FamilyContext = createContext<FamilyContextValue | null>(null);

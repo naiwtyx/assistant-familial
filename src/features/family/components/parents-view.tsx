@@ -2,13 +2,28 @@
 
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-import { useActiveFamily } from "./family-provider";
+import { useMyMembership } from "./family-provider";
 import { MemberManagement } from "./member-management";
+import { isAuthorized } from "../lib/roles";
 
-/** Tableau de bord réservé aux parents (owner/parent). L'accès est vérifié côté serveur. */
+/**
+ * Tableau de bord réservé aux parents (owner/parent). L'accès est vérifié côté
+ * client à partir du rôle déjà chargé (rapide) ; les actions sensibles restent
+ * protégées côté base (RLS + fonction `set_member_role`).
+ */
 export function ParentsView() {
-  const family = useActiveFamily();
+  const { family, role } = useMyMembership();
+  const router = useRouter();
+  const allowed = isAuthorized(role);
+
+  useEffect(() => {
+    if (!allowed) router.replace("/dashboard");
+  }, [allowed, router]);
+
+  if (!allowed) return null;
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">

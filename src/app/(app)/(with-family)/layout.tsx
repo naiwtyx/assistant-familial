@@ -37,7 +37,12 @@ export default async function WithFamilyLayout({ children }: { children: React.R
 
   return (
     <FamilyProvider
-      value={{ family: activeFamily, role: membership?.role ?? "member", userId: user.id }}
+      value={{
+        family: activeFamily,
+        role: membership?.role ?? "member",
+        userId: user.id,
+        email: user.email ?? null,
+      }}
     >
       {/* Zone sûre en haut (encoche) + espace en bas pour la barre fixe. */}
       <div className="pt-[env(safe-area-inset-top)] pb-24">{children}</div>
