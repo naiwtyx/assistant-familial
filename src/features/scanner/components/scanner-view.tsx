@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Loader2, Save } from "lucide-react";
+import { Camera, Loader2, Plus, Save, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
@@ -25,10 +25,11 @@ type ScanItem = {
 
 type ReceiptMeta = { store: string | null; date: string | null; total: number | null };
 
+const MAX_PHOTOS = 5;
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
-/** Redimensionne l'image côté client (moins de données envoyées, analyse plus rapide). */
-function fileToDownscaledDataUrl(file: File, maxSize = 1200): Promise<string> {
+/** Redimensionne l'image côté client. Assez net pour lire le ticket, assez léger pour l'envoi. */
+function fileToDownscaledDataUrl(file: File, maxSize = 1600): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Lecture du fichier impossible."));
@@ -48,7 +49,7 @@ function fileToDownscaledDataUrl(file: File, maxSize = 1200): Promise<string> {
           return;
         }
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.7));
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
       };
       image.src = reader.result as string;
     };
@@ -63,7 +64,7 @@ export function ScannerView() {
   const saveReceipt = useSaveReceipt(family.id);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [items, setItems] = useState<ScanItem[] | null>(null);
   const [meta, setMeta] = useState<ReceiptMeta | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -71,11 +72,12 @@ export function ScannerView() {
   const isSaving = saveReceipt.isPending || addScanned.isPending;
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = ""; // permet de reprendre la même photo
+    if (files.length === 0) return;
     try {
-      const dataUrl = await fileToDownscaledDataUrl(file);
-      setImage(dataUrl);
+      const urls = await Promise.all(files.map((file) => fileToDownscaledDataUrl(file)));
+      setImages((prev) => [...prev, ...urls].slice(0, MAX_PHOTOS));
       setItems(null);
       setMeta(null);
     } catch (error) {
@@ -83,14 +85,20 @@ export function ScannerView() {
     }
   }
 
+  function removeImage(index: number) {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    setItems(null);
+    setMeta(null);
+  }
+
   async function analyze() {
-    if (!image) return;
+    if (images.length === 0) return;
     setIsAnalyzing(true);
     try {
       const response = await fetch("/api/scan-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: image }),
+        body: JSON.stringify({ images }),
       });
       const data = (await response.json()) as {
         store?: string | null;
@@ -135,7 +143,6 @@ export function ScannerView() {
     const selected = all.filter((item) => item.selected);
 
     try {
-      // Le budget enregistre TOUT le ticket ; l'inventaire ne reçoit que les cochés.
       await saveReceipt.mutateAsync({
         store: meta?.store ?? null,
         date: meta?.date ?? null,
@@ -171,7 +178,8 @@ export function ScannerView() {
           Scanner un ticket
         </h1>
         <p className="text-muted-foreground text-sm">
-          L&apos;IA lit les produits et les prix pour l&apos;inventaire et le budget.
+          Prends une ou plusieurs photos (pour les longs tickets). L&apos;IA lit les produits et
+          les prix.
         </p>
       </header>
 
@@ -180,31 +188,55 @@ export function ScannerView() {
         type="file"
         accept="image/*"
         capture="environment"
+        multiple
         onChange={handleFile}
         className="hidden"
       />
 
-      {image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={image} alt="Aperçu du ticket" className="max-h-56 w-full rounded-xl border object-contain" />
+      {images.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {images.map((src, index) => (
+            <div key={index} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={`Ticket ${index + 1}`}
+                className="size-20 rounded-lg border object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(index)}
+                className="bg-background text-muted-foreground hover:text-destructive absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border"
+                aria-label="Retirer la photo"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+          {images.length < MAX_PHOTOS ? (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-muted-foreground hover:text-foreground flex size-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-xs"
+            >
+              <Plus className="size-4" />
+              Photo
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
-      <div className="flex gap-2">
-        <Button
-          variant={image ? "outline" : "default"}
-          className="flex-1"
-          onClick={() => fileInputRef.current?.click()}
-        >
+      {images.length === 0 ? (
+        <Button onClick={() => fileInputRef.current?.click()}>
           <Camera className="size-4" />
-          {image ? "Reprendre" : "Photographier le ticket"}
+          Photographier le ticket
         </Button>
-        {image ? (
-          <Button className="flex-1" onClick={analyze} disabled={isAnalyzing}>
-            {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : null}
-            {isAnalyzing ? "Analyse…" : "Analyser"}
-          </Button>
-        ) : null}
-      </div>
+      ) : (
+        <Button onClick={analyze} disabled={isAnalyzing}>
+          {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : null}
+          {isAnalyzing ? "Analyse…" : `Analyser (${images.length} photo${images.length > 1 ? "s" : ""})`}
+        </Button>
+      )}
 
       {items && items.length > 0 ? (
         <div className="flex flex-col gap-2">

@@ -46,7 +46,18 @@ export function NotificationSettings() {
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => setSubscribed(Boolean(subscription)))
+      .then(async (subscription) => {
+        if (subscription) {
+          // Auto-réparation : réenregistre l'abonnement côté serveur au cas où
+          // il y aurait été perdu (ex. table créée après un 1er essai).
+          await fetch("/api/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscription: subscription.toJSON() }),
+          }).catch(() => undefined);
+        }
+        setSubscribed(Boolean(subscription));
+      })
       .catch(() => setSubscribed(false));
   }, []);
 

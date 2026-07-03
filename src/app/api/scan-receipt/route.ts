@@ -2,17 +2,18 @@ import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { parseReceiptImage } from "@/lib/scanner/parse-receipt";
+import { parseReceiptImages } from "@/lib/scanner/parse-receipt";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 const requestSchema = z.object({
-  // Image du ticket, en data URL base64 (déjà redimensionnée côté client).
-  imageBase64: z
-    .string()
-    .startsWith("data:image/")
-    .max(8_000_000, "Image trop volumineuse."),
+  // 1 à 5 images du ticket (data URL base64, déjà redimensionnées côté client).
+  images: z
+    .array(z.string().startsWith("data:image/").max(6_000_000, "Image trop volumineuse."))
+    .min(1)
+    .max(5),
 });
 
 export async function POST(request: Request) {
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
   const model = process.env.GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct";
 
   try {
-    const result = await parseReceiptImage(groq, model, parsed.data.imageBase64);
+    const result = await parseReceiptImages(groq, model, parsed.data.images);
     return NextResponse.json(result);
   } catch (error) {
     console.error("[scan-receipt] erreur:", error);

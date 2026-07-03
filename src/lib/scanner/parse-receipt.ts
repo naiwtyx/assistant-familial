@@ -30,7 +30,8 @@ export type ParsedReceipt = z.infer<typeof receiptSchema>;
 
 const CATEGORY_LIST = PRODUCT_CATEGORIES.map((c) => `${c.value} = ${c.label}`).join("\n");
 
-const PROMPT = `Tu analyses la photo d'un ticket de caisse.
+const PROMPT = `Tu analyses la ou les photo(s) d'un ticket de caisse.
+Si plusieurs images sont fournies, ce sont les parties SUCCESSIVES d'un même ticket : combine-les en une seule liste (sans doublons).
 Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte ni balise autour, au format :
 {"store": "<magasin ou null>", "date": "<AAAA-MM-JJ ou null>", "total": <nombre ou null>, "items": [{"name": "<nom complet en français>", "quantity": <entier>, "price": <prix TOTAL de la ligne en euros>, "category": "<valeur de catégorie>"}]}
 
@@ -56,21 +57,21 @@ function extractJson(text: string): string {
   return start !== -1 && end !== -1 ? candidate.slice(start, end + 1) : candidate;
 }
 
-export async function parseReceiptImage(
+export async function parseReceiptImages(
   groq: Groq,
   model: string,
-  dataUrl: string,
+  dataUrls: string[],
 ): Promise<ParsedReceipt> {
   const completion = await groq.chat.completions.create({
     model,
     temperature: 0.1,
-    max_tokens: 2000,
+    max_tokens: 3000,
     messages: [
       {
         role: "user",
         content: [
           { type: "text", text: PROMPT },
-          { type: "image_url", image_url: { url: dataUrl } },
+          ...dataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
         ],
       },
     ],

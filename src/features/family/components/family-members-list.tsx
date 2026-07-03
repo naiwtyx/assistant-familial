@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { useFamilyMembers } from "../hooks/use-family";
+import { ROLE_LABELS, type FamilyRole } from "../lib/roles";
 
 function initials(name: string | null | undefined): string {
   if (!name) return "?";
@@ -35,7 +36,7 @@ export function FamilyMembersList({ familyId }: { familyId: string }) {
                   {member.profile?.display_name ?? "Membre"}
                 </span>
                 <span className="text-muted-foreground text-xs">
-                  {member.role === "owner" ? "Propriétaire" : "Membre"}
+                  {ROLE_LABELS[member.role as FamilyRole] ?? "Membre"}
                 </span>
               </li>
             ))}
