@@ -1,3 +1,4 @@
+import { logActivity } from "@/features/activity/services/activity.service";
 import { createClient } from "@/lib/supabase/client";
 import type { Chore } from "@/types/db";
 
@@ -80,6 +81,10 @@ export async function setChoreDone(id: string, done: boolean): Promise<void> {
     .select("*")
     .single();
   if (error) throw error;
+
+  if (done) {
+    void logActivity(chore.family_id, "chore_done", { title: chore.title, points: chore.points });
+  }
 
   if (done && chore.recurrence === "daily") {
     await createNextOccurrence(chore, "daily", user?.id ?? null);

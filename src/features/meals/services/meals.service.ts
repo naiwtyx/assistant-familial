@@ -1,3 +1,4 @@
+import { logActivity } from "@/features/activity/services/activity.service";
 import { getInventory } from "@/features/inventory/services/inventory.service";
 import { compareIngredientsWithInventory, type IngredientNeed } from "@/features/recipes/lib/compare";
 import { addShoppingItems } from "@/features/shopping/services/shopping.service";
@@ -128,11 +129,12 @@ export async function addPlannedIngredientsToShopping(
  */
 export async function cookMeal(familyId: string, recipeId: string): Promise<number> {
   const supabase = createClient();
-  const { data: ingredients, error } = await supabase
-    .from("recipe_ingredients")
-    .select("name,quantity")
-    .eq("recipe_id", recipeId);
-  if (error) throw error;
+  const [ingredientsResult, recipeResult] = await Promise.all([
+    supabase.from("recipe_ingredients").select("name,quantity").eq("recipe_id", recipeId),
+    supabase.from("recipes").select("name").eq("id", recipeId).single(),
+  ]);
+  if (ingredientsResult.error) throw ingredientsResult.error;
+  const ingredients = ingredientsResult.data;
   if (!ingredients || ingredients.length === 0) return 0;
 
   const inventory = await getInventory(familyId);
@@ -151,5 +153,7 @@ export async function cookMeal(familyId: string, recipeId: string): Promise<numb
     if (updateError) throw updateError;
     updated += 1;
   }
+
+  void logActivity(familyId, "meal_cooked", { recipe: recipeResult.data?.name ?? "un repas" });
   return updated;
 }

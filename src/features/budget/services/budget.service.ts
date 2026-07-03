@@ -15,6 +15,16 @@ export type SaveReceiptInput = {
   items: ReceiptItemInput[];
 };
 
+/** Définit le plafond de budget mensuel (réservé aux parents). `null` = aucun. */
+export async function setFamilyBudget(familyId: string, budget: number | null): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("set_family_budget", {
+    p_family_id: familyId,
+    p_budget: budget,
+  });
+  if (error) throw error;
+}
+
 /** Enregistre un ticket + ses lignes via la RPC sécurisée (atomique). */
 export async function saveReceipt(input: SaveReceiptInput): Promise<void> {
   const supabase = createClient();

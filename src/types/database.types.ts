@@ -50,6 +50,7 @@ export type Database = {
           created_by: string | null;
           ai_min_age: number | null;
           shopping_reminder_day: number | null;
+          monthly_budget: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -59,6 +60,7 @@ export type Database = {
           created_by?: string | null;
           ai_min_age?: number | null;
           shopping_reminder_day?: number | null;
+          monthly_budget?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -68,6 +70,7 @@ export type Database = {
           created_by?: string | null;
           ai_min_age?: number | null;
           shopping_reminder_day?: number | null;
+          monthly_budget?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -123,6 +126,7 @@ export type Database = {
           event_date: string;
           event_time: string | null;
           note: string | null;
+          recurrence: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -133,6 +137,7 @@ export type Database = {
           event_date: string;
           event_time?: string | null;
           note?: string | null;
+          recurrence?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
@@ -143,6 +148,7 @@ export type Database = {
           event_date?: string;
           event_time?: string | null;
           note?: string | null;
+          recurrence?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
@@ -615,6 +621,10 @@ export type Database = {
       };
       set_family_shopping_day: {
         Args: { p_family_id: string; p_day: number | null };
+        Returns: Database["public"]["Tables"]["families"]["Row"];
+      };
+      set_family_budget: {
+        Args: { p_family_id: string; p_budget: number | null };
         Returns: Database["public"]["Tables"]["families"]["Row"];
       };
       shares_family_with: {

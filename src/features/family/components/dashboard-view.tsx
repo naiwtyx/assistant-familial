@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CheckSquare,
+  History,
   Lightbulb,
   Package,
   ShoppingCart,
@@ -28,6 +29,7 @@ const SHORTCUTS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/agenda", label: "Agenda", icon: CalendarClock },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
   { href: "/idees", label: "Idées", icon: Lightbulb },
+  { href: "/activite", label: "Activité", icon: History },
 ];
 
 export function DashboardView() {

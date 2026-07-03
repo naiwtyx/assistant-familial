@@ -1,17 +1,19 @@
 "use client";
 
-import { CalendarClock, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Plus, Repeat, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { isAuthorized } from "@/features/family/lib/roles";
 import { getErrorMessage } from "@/lib/get-error-message";
 import type { FamilyEvent } from "@/types/db";
 
 import { useAddEvent, useDeleteEvent, useEvents } from "../hooks/use-events";
+import type { EventRecurrence } from "../services/events.service";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -45,6 +47,7 @@ export function EventsView() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [note, setNote] = useState("");
+  const [recurrence, setRecurrence] = useState<"" | EventRecurrence>("");
 
   function onError(error: unknown) {
     toast.error(getErrorMessage(error));
@@ -54,7 +57,13 @@ export function EventsView() {
     event.preventDefault();
     if (!title.trim() || !date) return;
     addEvent.mutate(
-      { title: title.trim(), date, time: time || null, note: note.trim() || null },
+      {
+        title: title.trim(),
+        date,
+        time: time || null,
+        note: note.trim() || null,
+        recurrence: recurrence || null,
+      },
       {
         onError,
         onSuccess: () => {
@@ -62,6 +71,7 @@ export function EventsView() {
           setDate("");
           setTime("");
           setNote("");
+          setRecurrence("");
         },
       },
     );
@@ -104,6 +114,15 @@ export function EventsView() {
             className="w-28"
           />
         </div>
+        <NativeSelect
+          value={recurrence}
+          onChange={(event) => setRecurrence(event.target.value as "" | EventRecurrence)}
+          aria-label="Répétition"
+        >
+          <option value="">Ne pas répéter</option>
+          <option value="weekly">Chaque semaine</option>
+          <option value="monthly">Chaque mois</option>
+        </NativeSelect>
         <div className="flex gap-2">
           <Input
             value={note}
@@ -143,7 +162,12 @@ export function EventsView() {
                       </span>
                     ) : null}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm break-words">{event.title}</p>
+                      <p className="flex items-center gap-1.5 text-sm break-words">
+                        {event.title}
+                        {event.recurrence ? (
+                          <Repeat className="text-muted-foreground size-3 shrink-0" />
+                        ) : null}
+                      </p>
                       {event.note ? (
                         <p className="text-muted-foreground text-xs break-words">{event.note}</p>
                       ) : null}

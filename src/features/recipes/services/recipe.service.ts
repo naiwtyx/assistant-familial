@@ -1,3 +1,4 @@
+import { logActivity } from "@/features/activity/services/activity.service";
 import { createClient } from "@/lib/supabase/client";
 import type { Recipe, RecipeIngredient } from "@/types/db";
 
@@ -79,6 +80,7 @@ export async function createRecipe(familyId: string, input: RecipeInput): Promis
     throw ingredientsError;
   }
 
+  void logActivity(familyId, "recipe_add", { name: input.name });
   return recipe;
 }
 

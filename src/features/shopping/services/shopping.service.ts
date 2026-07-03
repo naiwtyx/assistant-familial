@@ -1,3 +1,4 @@
+import { logActivity } from "@/features/activity/services/activity.service";
 import { createClient } from "@/lib/supabase/client";
 import type { ShoppingItem } from "@/types/db";
 
@@ -43,6 +44,7 @@ export async function addShoppingItem(
     .select()
     .single();
   if (error) throw error;
+  void logActivity(familyId, "shopping_add", { name: input.name });
   return data;
 }
 
