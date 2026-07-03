@@ -43,7 +43,11 @@ export async function addShoppingItem(
   return data;
 }
 
-/** Ajout groupé d'articles (ex. ingrédients manquants d'une recette). */
+/**
+ * Ajout groupé d'articles (ex. ingrédients manquants d'une recette).
+ * Si un article encore à acheter porte déjà le même nom, on incrémente sa
+ * quantité au lieu de créer un doublon.
+ */
 export async function addShoppingItems(
   familyId: string,
   items: { name: string; quantity: number; unit: string | null }[],
@@ -54,16 +58,51 @@ export async function addShoppingItems(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const rows = items.map((item) => ({
-    family_id: familyId,
-    name: item.name,
-    quantity: item.quantity,
-    unit: item.unit,
-    created_by: user?.id ?? null,
-  }));
+  // Articles encore à acheter (non cochés), pour fusionner par nom.
+  const { data: existing, error: existingError } = await supabase
+    .from("shopping_items")
+    .select("id,name,quantity")
+    .eq("family_id", familyId)
+    .eq("is_checked", false);
+  if (existingError) throw existingError;
 
-  const { error } = await supabase.from("shopping_items").insert(rows);
-  if (error) throw error;
+  const normalize = (name: string) => name.trim().toLowerCase();
+  const byName = new Map(
+    (existing ?? []).map((item) => [normalize(item.name), { id: item.id, quantity: item.quantity }]),
+  );
+
+  const toInsert: {
+    family_id: string;
+    name: string;
+    quantity: number;
+    unit: string | null;
+    created_by: string | null;
+  }[] = [];
+
+  for (const item of items) {
+    const match = byName.get(normalize(item.name));
+    if (match) {
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ quantity: match.quantity + item.quantity })
+        .eq("id", match.id);
+      if (error) throw error;
+      match.quantity += item.quantity;
+    } else {
+      toInsert.push({
+        family_id: familyId,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        created_by: user?.id ?? null,
+      });
+    }
+  }
+
+  if (toInsert.length > 0) {
+    const { error } = await supabase.from("shopping_items").insert(toInsert);
+    if (error) throw error;
+  }
 }
 
 export async function updateShoppingItem(

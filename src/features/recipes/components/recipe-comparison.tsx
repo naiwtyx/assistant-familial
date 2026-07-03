@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ShoppingCart, X } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,9 @@ export function RecipeComparison({
 }) {
   const { data: inventory, isLoading } = useInventory(familyId);
   const addToShopping = useAddShoppingItems(familyId);
+  // Signature du lot déjà ajouté : le bouton reste grisé tant que les manquants
+  // n'ont pas changé (nombre de personnes, inventaire, recette retouchée).
+  const [addedSignature, setAddedSignature] = useState<string | null>(null);
 
   if (isLoading || !inventory) {
     return <p className="text-muted-foreground text-sm">Comparaison avec l&apos;inventaire…</p>;
@@ -32,15 +36,21 @@ export function RecipeComparison({
   const rows = compareIngredientsWithInventory(ingredients, inventory);
   const missing = rows.filter((row) => row.status !== "in_stock");
 
+  const items = missing.map((row) => ({
+    name: row.name,
+    // On arrondit la quantité manquante au supérieur (au moins 1).
+    quantity: Math.max(1, Math.ceil(row.missing)),
+    unit: row.unit,
+  }));
+  const signature = items.map((item) => `${item.name}:${item.quantity}${item.unit ?? ""}`).join("|");
+  const alreadyAdded = addedSignature !== null && addedSignature === signature;
+
   function handleAddMissing() {
-    const items = missing.map((row) => ({
-      name: row.name,
-      // On arrondit la quantité manquante au supérieur (au moins 1).
-      quantity: Math.max(1, Math.ceil(row.missing)),
-      unit: row.unit,
-    }));
     addToShopping.mutate(items, {
-      onSuccess: () => toast.success("Ingrédients manquants ajoutés aux courses"),
+      onSuccess: () => {
+        setAddedSignature(signature);
+        toast.success("Ingrédients manquants ajoutés aux courses");
+      },
       onError: (error) => toast.error(getErrorMessage(error)),
     });
   }
@@ -70,9 +80,16 @@ export function RecipeComparison({
       </ul>
 
       {missing.length > 0 ? (
-        <Button onClick={handleAddMissing} disabled={addToShopping.isPending} className="mt-1">
-          <ShoppingCart className="size-4" />
-          Ajouter les manquants aux courses ({missing.length})
+        <Button
+          onClick={handleAddMissing}
+          disabled={addToShopping.isPending || alreadyAdded}
+          variant={alreadyAdded ? "outline" : "default"}
+          className="mt-1"
+        >
+          {alreadyAdded ? <Check className="size-4" /> : <ShoppingCart className="size-4" />}
+          {alreadyAdded
+            ? "Ajouté aux courses ✓"
+            : `Ajouter les manquants aux courses (${missing.length})`}
         </Button>
       ) : (
         <p className="text-muted-foreground text-sm">Tu as tout ce qu&apos;il faut ✅</p>

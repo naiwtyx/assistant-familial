@@ -9,6 +9,8 @@ import {
   getFamilyMembers,
   getPendingInvites,
   joinFamily,
+  setFamilyAiMinAge,
+  setMemberBirthDate,
   setMemberPermission,
   setMemberRole,
 } from "../services/family.service";
@@ -69,5 +71,22 @@ export function useSetMemberPermission(familyId: string) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: familyKeys.members(familyId) });
     },
+  });
+}
+
+export function useSetMemberBirthDate(familyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, birthDate }: { userId: string; birthDate: string | null }) =>
+      setMemberBirthDate(familyId, userId, birthDate),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: familyKeys.members(familyId) });
+    },
+  });
+}
+
+export function useSetFamilyAiMinAge(familyId: string) {
+  return useMutation({
+    mutationFn: (minAge: number | null) => setFamilyAiMinAge(familyId, minAge),
   });
 }

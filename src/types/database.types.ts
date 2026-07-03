@@ -48,6 +48,7 @@ export type Database = {
           id: string;
           name: string;
           created_by: string | null;
+          ai_min_age: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -55,6 +56,7 @@ export type Database = {
           id?: string;
           name: string;
           created_by?: string | null;
+          ai_min_age?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -62,6 +64,7 @@ export type Database = {
           id?: string;
           name?: string;
           created_by?: string | null;
+          ai_min_age?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -75,6 +78,7 @@ export type Database = {
           role: "owner" | "parent" | "member";
           joined_at: string;
           can_use_ai: boolean;
+          birth_date: string | null;
         };
         Insert: {
           id?: string;
@@ -83,6 +87,7 @@ export type Database = {
           role?: "owner" | "parent" | "member";
           joined_at?: string;
           can_use_ai?: boolean;
+          birth_date?: string | null;
         };
         Update: {
           id?: string;
@@ -91,6 +96,7 @@ export type Database = {
           role?: "owner" | "parent" | "member";
           joined_at?: string;
           can_use_ai?: boolean;
+          birth_date?: string | null;
         };
         Relationships: [];
       };
@@ -466,6 +472,14 @@ export type Database = {
       set_member_permission: {
         Args: { p_family_id: string; p_user_id: string; p_can_use_ai: boolean };
         Returns: Database["public"]["Tables"]["family_members"]["Row"];
+      };
+      set_member_birth_date: {
+        Args: { p_family_id: string; p_user_id: string; p_birth_date: string | null };
+        Returns: Database["public"]["Tables"]["family_members"]["Row"];
+      };
+      set_family_ai_min_age: {
+        Args: { p_family_id: string; p_min_age: number | null };
+        Returns: Database["public"]["Tables"]["families"]["Row"];
       };
       shares_family_with: {
         Args: { p_user_id: string };

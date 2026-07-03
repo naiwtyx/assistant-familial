@@ -95,6 +95,31 @@ export async function setMemberPermission(
   if (error) throw error;
 }
 
+/** Renseigne la date de naissance d'un membre (réservé aux parents). `null` pour l'effacer. */
+export async function setMemberBirthDate(
+  familyId: string,
+  userId: string,
+  birthDate: string | null,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("set_member_birth_date", {
+    p_family_id: familyId,
+    p_user_id: userId,
+    p_birth_date: birthDate,
+  });
+  if (error) throw error;
+}
+
+/** Définit l'âge minimum pour parler à l'IA (réservé aux parents). `null` = aucune limite. */
+export async function setFamilyAiMinAge(familyId: string, minAge: number | null): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("set_family_ai_min_age", {
+    p_family_id: familyId,
+    p_min_age: minAge,
+  });
+  if (error) throw error;
+}
+
 export type PendingInvite = FamilyInvite & { authorName: string | null };
 
 /** Invitations en attente d'approbation (créées par des membres). */

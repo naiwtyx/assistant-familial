@@ -2,6 +2,7 @@ import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { canMemberUseAi } from "@/features/family/lib/ai-access";
 import { buildExecutors, tools } from "@/lib/ai/build-tools";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { createClient } from "@/lib/supabase/server";
@@ -48,22 +49,31 @@ export async function POST(request: Request) {
 
   const { data: families } = await supabase
     .from("families")
-    .select("id")
+    .select("id,ai_min_age")
     .order("created_at", { ascending: true })
     .limit(1);
-  const familyId = families?.[0]?.id;
+  const family = families?.[0];
+  const familyId = family?.id;
   if (!familyId) {
     return NextResponse.json({ error: "Aucune famille active." }, { status: 400 });
   }
 
-  // Un membre dont le droit IA a été retiré par un parent ne peut pas utiliser l'assistant.
+  // Accès à l'IA : droit retiré par un parent, ou âge insuffisant selon le réglage familial.
   const { data: membership } = await supabase
     .from("family_members")
-    .select("role,can_use_ai")
+    .select("role,can_use_ai,birth_date")
     .eq("family_id", familyId)
     .eq("user_id", user.id)
     .single();
-  if (membership && membership.role === "member" && !membership.can_use_ai) {
+  const allowed = membership
+    ? canMemberUseAi({
+        role: membership.role,
+        canUseAi: membership.can_use_ai,
+        birthDate: membership.birth_date,
+        minAge: family.ai_min_age,
+      })
+    : true;
+  if (!allowed) {
     return NextResponse.json(
       { error: "L'accès à l'assistant a été désactivé par un parent." },
       { status: 403 },
