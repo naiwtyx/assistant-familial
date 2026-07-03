@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Copy, UserPlus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Check, Copy, Hourglass, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,23 +13,46 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getErrorMessage } from "@/lib/get-error-message";
 
-import { useCreateInvite } from "../hooks/use-family";
+import { useMyMembership } from "./family-provider";
+import { familyKeys } from "../hooks/use-family";
+import { isAuthorized } from "../lib/roles";
+
+type CreateInviteResult = { code?: string; approved?: boolean; error?: string };
 
 export function InviteCard({ familyId }: { familyId: string }) {
-  const createInvite = useCreateInvite(familyId);
+  const { role } = useMyMembership();
+  const canGenerate = isAuthorized(role);
+  const queryClient = useQueryClient();
   const [code, setCode] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  function handleGenerate() {
-    createInvite.mutate(undefined, {
-      onSuccess: (invite) => {
-        setCode(invite.code);
+  async function handleGenerate() {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/invites/create", { method: "POST" });
+      const data = (await response.json()) as CreateInviteResult;
+      if (!response.ok || data.error) {
+        throw new Error(data.error ?? "Impossible de créer l'invitation.");
+      }
+      if (data.approved) {
+        setCode(data.code ?? null);
+        setPending(false);
         setCopied(false);
-      },
-      onError: (error) => toast.error(getErrorMessage(error)),
-    });
+      } else {
+        setCode(null);
+        setPending(true);
+        toast.success("Demande envoyée à un parent pour approbation.");
+      }
+      // Un parent verra la nouvelle demande en attente immédiatement.
+      void queryClient.invalidateQueries({ queryKey: familyKeys.pendingInvites(familyId) });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Une erreur est survenue.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function handleCopy() {
@@ -47,7 +71,11 @@ export function InviteCard({ familyId }: { familyId: string }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Inviter un membre</CardTitle>
-        <CardDescription>Génère un code valable 7 jours et partage-le.</CardDescription>
+        <CardDescription>
+          {canGenerate
+            ? "Génère un code valable 7 jours et partage-le."
+            : "Demande un code d'invitation ; un parent devra l'approuver."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         {code ? (
@@ -60,9 +88,29 @@ export function InviteCard({ familyId }: { familyId: string }) {
             </Button>
           </div>
         ) : null}
-        <Button onClick={handleGenerate} disabled={createInvite.isPending} variant={code ? "outline" : "default"}>
-          <UserPlus className="size-4" />
-          {createInvite.isPending ? "Génération…" : code ? "Générer un nouveau code" : "Générer un code"}
+
+        {pending ? (
+          <p className="bg-muted text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+            <Hourglass className="size-4 shrink-0" />
+            En attente de l&apos;approbation d&apos;un parent.
+          </p>
+        ) : null}
+
+        <Button
+          onClick={handleGenerate}
+          disabled={isLoading}
+          variant={code ? "outline" : "default"}
+        >
+          {canGenerate ? <UserPlus className="size-4" /> : <Hourglass className="size-4" />}
+          {isLoading
+            ? canGenerate
+              ? "Génération…"
+              : "Envoi…"
+            : canGenerate
+              ? code
+                ? "Générer un nouveau code"
+                : "Générer un code"
+              : "Demander un code"}
         </Button>
       </CardContent>
     </Card>

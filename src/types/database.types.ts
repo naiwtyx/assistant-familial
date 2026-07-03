@@ -74,6 +74,7 @@ export type Database = {
           user_id: string;
           role: "owner" | "parent" | "member";
           joined_at: string;
+          can_use_ai: boolean;
         };
         Insert: {
           id?: string;
@@ -81,6 +82,7 @@ export type Database = {
           user_id: string;
           role?: "owner" | "parent" | "member";
           joined_at?: string;
+          can_use_ai?: boolean;
         };
         Update: {
           id?: string;
@@ -88,6 +90,7 @@ export type Database = {
           user_id?: string;
           role?: "owner" | "parent" | "member";
           joined_at?: string;
+          can_use_ai?: boolean;
         };
         Relationships: [];
       };
@@ -98,6 +101,7 @@ export type Database = {
           code: string;
           created_by: string | null;
           expires_at: string | null;
+          approved: boolean;
           created_at: string;
         };
         Insert: {
@@ -106,6 +110,7 @@ export type Database = {
           code: string;
           created_by?: string | null;
           expires_at?: string | null;
+          approved?: boolean;
           created_at?: string;
         };
         Update: {
@@ -114,6 +119,7 @@ export type Database = {
           code?: string;
           created_by?: string | null;
           expires_at?: string | null;
+          approved?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -289,6 +295,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      suggestions: {
+        Row: {
+          id: string;
+          family_id: string;
+          created_by: string | null;
+          content: string;
+          done: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_id: string;
+          created_by?: string | null;
+          content: string;
+          done?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          family_id?: string;
+          created_by?: string | null;
+          content?: string;
+          done?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       receipts: {
         Row: {
           id: string;
@@ -421,6 +454,18 @@ export type Database = {
           p_items: Json;
         };
         Returns: string;
+      };
+      create_invite: {
+        Args: { p_family_id: string; p_code: string; p_expires_at: string | null };
+        Returns: Database["public"]["Tables"]["family_invites"]["Row"];
+      };
+      approve_invite: {
+        Args: { p_invite_id: string };
+        Returns: Database["public"]["Tables"]["family_invites"]["Row"];
+      };
+      set_member_permission: {
+        Args: { p_family_id: string; p_user_id: string; p_can_use_ai: boolean };
+        Returns: Database["public"]["Tables"]["family_members"]["Row"];
       };
       shares_family_with: {
         Args: { p_user_id: string };

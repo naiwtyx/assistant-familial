@@ -1,6 +1,13 @@
 "use client";
 
-import { BookOpen, Package, ShoppingCart, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  BookOpen,
+  Lightbulb,
+  Package,
+  ShoppingCart,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
@@ -14,6 +21,7 @@ const SHORTCUTS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/inventaire", label: "Inventaire", icon: Package },
   { href: "/recettes", label: "Recettes", icon: BookOpen },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
+  { href: "/idees", label: "Idées", icon: Lightbulb },
 ];
 
 export function DashboardView() {

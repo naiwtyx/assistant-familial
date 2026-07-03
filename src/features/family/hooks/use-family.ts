@@ -4,15 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { FamilyRole } from "../lib/roles";
 import {
+  approveInvite,
   createFamily,
-  createInvite,
   getFamilyMembers,
+  getPendingInvites,
   joinFamily,
+  setMemberPermission,
   setMemberRole,
 } from "../services/family.service";
 
 export const familyKeys = {
   members: (familyId: string) => ["family-members", familyId] as const,
+  pendingInvites: (familyId: string) => ["pending-invites", familyId] as const,
 };
 
 export function useCreateFamily() {
@@ -30,8 +33,21 @@ export function useFamilyMembers(familyId: string) {
   });
 }
 
-export function useCreateInvite(familyId: string) {
-  return useMutation({ mutationFn: () => createInvite(familyId) });
+export function usePendingInvites(familyId: string) {
+  return useQuery({
+    queryKey: familyKeys.pendingInvites(familyId),
+    queryFn: () => getPendingInvites(familyId),
+  });
+}
+
+export function useApproveInvite(familyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) => approveInvite(inviteId),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: familyKeys.pendingInvites(familyId) });
+    },
+  });
 }
 
 export function useSetMemberRole(familyId: string) {
@@ -39,6 +55,17 @@ export function useSetMemberRole(familyId: string) {
   return useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: Exclude<FamilyRole, "owner"> }) =>
       setMemberRole(familyId, userId, role),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: familyKeys.members(familyId) });
+    },
+  });
+}
+
+export function useSetMemberPermission(familyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, canUseAi }: { userId: string; canUseAi: boolean }) =>
+      setMemberPermission(familyId, userId, canUseAi),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: familyKeys.members(familyId) });
     },

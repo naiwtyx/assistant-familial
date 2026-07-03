@@ -9,6 +9,7 @@ import { BudgetDashboard } from "@/features/budget/components/budget-dashboard";
 
 import { useMyMembership } from "./family-provider";
 import { MemberManagement } from "./member-management";
+import { PendingInvitesCard } from "./pending-invites-card";
 import { isAuthorized } from "../lib/roles";
 
 /**
@@ -50,6 +51,7 @@ export function ParentsView() {
         famille.
       </div>
 
+      <PendingInvitesCard familyId={family.id} />
       <BudgetDashboard familyId={family.id} />
       <MemberManagement familyId={family.id} />
     </main>

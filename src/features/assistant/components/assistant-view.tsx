@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useMyMembership } from "@/features/family/components/family-provider";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -17,6 +18,7 @@ const SUGGESTIONS = [
 ];
 
 export function AssistantView() {
+  const { canUseAi } = useMyMembership();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +27,17 @@ export function AssistantView() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  if (!canUseAi) {
+    return (
+      <main className="mx-auto flex min-h-[calc(100dvh-8.5rem)] w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
+        <Sparkles className="text-muted-foreground size-8 opacity-40" />
+        <p className="text-muted-foreground text-sm">
+          L&apos;accès à l&apos;assistant a été désactivé par un parent.
+        </p>
+      </main>
+    );
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();

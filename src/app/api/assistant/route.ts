@@ -56,6 +56,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Aucune famille active." }, { status: 400 });
   }
 
+  // Un membre dont le droit IA a été retiré par un parent ne peut pas utiliser l'assistant.
+  const { data: membership } = await supabase
+    .from("family_members")
+    .select("role,can_use_ai")
+    .eq("family_id", familyId)
+    .eq("user_id", user.id)
+    .single();
+  if (membership && membership.role === "member" && !membership.can_use_ai) {
+    return NextResponse.json(
+      { error: "L'accès à l'assistant a été désactivé par un parent." },
+      { status: 403 },
+    );
+  }
+
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });

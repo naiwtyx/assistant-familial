@@ -30,7 +30,7 @@ export default async function WithFamilyLayout({ children }: { children: React.R
 
   const { data: membership } = await supabase
     .from("family_members")
-    .select("role")
+    .select("role,can_use_ai")
     .eq("family_id", activeFamily.id)
     .eq("user_id", user.id)
     .single();
@@ -42,6 +42,7 @@ export default async function WithFamilyLayout({ children }: { children: React.R
         role: membership?.role ?? "member",
         userId: user.id,
         email: user.email ?? null,
+        canUseAi: membership?.can_use_ai ?? true,
       }}
     >
       {/* Zone sûre en haut (encoche) + espace en bas pour la barre fixe. */}

@@ -16,6 +16,7 @@ type FamilyContextValue = {
   role: FamilyRole;
   userId: string;
   email: string | null;
+  canUseAi: boolean;
 };
 
 const FamilyContext = createContext<FamilyContextValue | null>(null);

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Family, FamilyInvite, FamilyMember, Profile } from "@/types/db";
 
-import { generateInviteCode, normalizeInviteCode } from "../lib/invite-code";
+import { normalizeInviteCode } from "../lib/invite-code";
 import type { CreateFamilyInput, JoinFamilyInput } from "../schemas/family.schema";
 
 export type FamilyMemberWithProfile = FamilyMember & { profile: Profile | null };
@@ -80,26 +80,53 @@ export async function setMemberRole(
   if (error) throw error;
 }
 
-/** Crée un code d'invitation valable un certain nombre de jours. */
-export async function createInvite(familyId: string, expiresInDays = 7): Promise<FamilyInvite> {
+/** Active/désactive un droit d'un membre (ex. accès à l'IA). Réservé aux parents (contrôlé côté base). */
+export async function setMemberPermission(
+  familyId: string,
+  userId: string,
+  canUseAi: boolean,
+): Promise<void> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Authentification requise");
+  const { error } = await supabase.rpc("set_member_permission", {
+    p_family_id: familyId,
+    p_user_id: userId,
+    p_can_use_ai: canUseAi,
+  });
+  if (error) throw error;
+}
 
-  const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+export type PendingInvite = FamilyInvite & { authorName: string | null };
 
+/** Invitations en attente d'approbation (créées par des membres). */
+export async function getPendingInvites(familyId: string): Promise<PendingInvite[]> {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("family_invites")
-    .insert({
-      family_id: familyId,
-      code: generateInviteCode(),
-      created_by: user.id,
-      expires_at: expiresAt,
-    })
-    .select()
-    .single();
+    .select("*")
+    .eq("family_id", familyId)
+    .eq("approved", false)
+    .order("created_at", { ascending: false });
   if (error) throw error;
-  return data;
+
+  const authorIds = [...new Set(data.map((i) => i.created_by).filter(Boolean))] as string[];
+  const byId = new Map<string, string>();
+  if (authorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id,display_name")
+      .in("id", authorIds);
+    for (const profile of profiles ?? []) byId.set(profile.id, profile.display_name);
+  }
+
+  return data.map((invite) => ({
+    ...invite,
+    authorName: invite.created_by ? (byId.get(invite.created_by) ?? null) : null,
+  }));
+}
+
+/** Approuve une invitation en attente (réservé aux parents ; contrôlé côté base). */
+export async function approveInvite(inviteId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("approve_invite", { p_invite_id: inviteId });
+  if (error) throw error;
 }
