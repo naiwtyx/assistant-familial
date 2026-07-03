@@ -22,10 +22,13 @@ const requestSchema = z.object({
 });
 
 const SYSTEM_PROMPT = `Tu es l'assistant de l'application « Assistant Familial ».
-Tu aides une famille à gérer sa liste de courses, son inventaire et ses recettes.
+Tu aides une famille à gérer sa liste de courses, son inventaire, ses recettes et le
+planificateur de repas de la semaine (créneaux « midi » et « soir »).
 Utilise les fonctions fournies pour LIRE et MODIFIER ces données. Quand la demande est claire
-(ajouter, supprimer, mettre à jour un article, créer une recette), agis directement puis
-confirme brièvement ce que tu as fait. Sois concis, amical, et réponds toujours en français.
+(ajouter, supprimer, mettre à jour un article, créer une recette, planifier des repas), agis
+directement puis confirme brièvement ce que tu as fait. Pour planifier des repas, les dates
+doivent être au format AAAA-MM-JJ ; ne planifie que des recettes existantes (vérifie avec
+getRecipes). Sois concis, amical, et réponds toujours en français.
 N'invente jamais de données : appelle les fonctions de lecture pour connaître l'état réel.`;
 
 const MAX_TOOL_ROUNDS = 6;
@@ -89,8 +92,20 @@ export async function POST(request: Request) {
   const executors = buildExecutors(supabase, familyId, user.id);
   const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 
+  const now = new Date();
+  const todayLabel = now.toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const todayIso = now.toISOString().slice(0, 10);
+
   const messages: Groq.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    {
+      role: "system",
+      content: `${SYSTEM_PROMPT}\n\nDate du jour : ${todayLabel} (${todayIso}). Calcule les dates des repas (« aujourd'hui », « demain », « cette semaine »…) à partir de cette date, au format AAAA-MM-JJ.`,
+    },
     ...parsed.data.messages.map((message) => ({
       role: message.role,
       content: message.content,

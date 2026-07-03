@@ -109,7 +109,60 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "getMealPlan",
+      description:
+        "Récupère les repas planifiés entre deux dates incluses (format AAAA-MM-JJ).",
+      parameters: {
+        type: "object",
+        properties: {
+          startDate: { type: "string", description: "Date de début, AAAA-MM-JJ" },
+          endDate: { type: "string", description: "Date de fin, AAAA-MM-JJ" },
+        },
+        required: ["startDate", "endDate"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "planMeal",
+      description:
+        "Planifie une recette existante pour un repas (midi ou soir) à une date. Vérifie les recettes avec getRecipes si besoin.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "Date du repas, AAAA-MM-JJ" },
+          slot: { type: "string", enum: ["midi", "soir"], description: "Créneau du repas" },
+          recipeName: { type: "string", description: "Nom de la recette à planifier" },
+        },
+        required: ["date", "slot", "recipeName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "clearMeal",
+      description: "Retire le repas planifié pour une date et un créneau (midi ou soir).",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "Date du repas, AAAA-MM-JJ" },
+          slot: { type: "string", enum: ["midi", "soir"], description: "Créneau du repas" },
+        },
+        required: ["date", "slot"],
+      },
+    },
+  },
 ];
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function asSlot(value: unknown): "midi" | "soir" | null {
+  return value === "midi" || value === "soir" ? value : null;
+}
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
@@ -238,6 +291,84 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       }
 
       return `Recette « ${name} » créée pour ${servings} personnes (${ingredients.length} ingrédient(s)).`;
+    },
+
+    getMealPlan: async (args) => {
+      const startDate = asString(args.startDate);
+      const endDate = asString(args.endDate);
+      if (!ISO_DATE.test(startDate) || !ISO_DATE.test(endDate)) {
+        return "Dates invalides (format attendu : AAAA-MM-JJ).";
+      }
+      const { data, error } = await supabase
+        .from("meal_plans")
+        .select("date,slot,recipe_id")
+        .eq("family_id", familyId)
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("date");
+      if (error) throw error;
+
+      const recipeIds = [...new Set((data ?? []).map((m) => m.recipe_id).filter(Boolean))] as string[];
+      const nameById = new Map<string, string>();
+      if (recipeIds.length > 0) {
+        const { data: recipes } = await supabase
+          .from("recipes")
+          .select("id,name")
+          .in("id", recipeIds);
+        for (const recipe of recipes ?? []) nameById.set(recipe.id, recipe.name);
+      }
+
+      return JSON.stringify(
+        (data ?? []).map((meal) => ({
+          date: meal.date,
+          slot: meal.slot,
+          recipe: meal.recipe_id ? (nameById.get(meal.recipe_id) ?? null) : null,
+        })),
+      );
+    },
+
+    planMeal: async (args) => {
+      const date = asString(args.date);
+      const slot = asSlot(args.slot);
+      const recipeName = asString(args.recipeName);
+      if (!ISO_DATE.test(date)) return "Date invalide (format attendu : AAAA-MM-JJ).";
+      if (!slot) return "Le créneau doit être « midi » ou « soir ».";
+      if (!recipeName) return "Nom de recette manquant.";
+
+      const { data: recipes, error: recipeError } = await supabase
+        .from("recipes")
+        .select("id,name")
+        .eq("family_id", familyId)
+        .ilike("name", recipeName)
+        .limit(1);
+      if (recipeError) throw recipeError;
+      const recipe = recipes?.[0];
+      if (!recipe) {
+        return `Aucune recette « ${recipeName} » trouvée. Crée-la d'abord ou vérifie le nom avec getRecipes.`;
+      }
+
+      const { error } = await supabase.from("meal_plans").upsert(
+        { family_id: familyId, date, slot, recipe_id: recipe.id, created_by: userId },
+        { onConflict: "family_id,date,slot" },
+      );
+      if (error) throw error;
+      return `Repas planifié : « ${recipe.name} » le ${date} (${slot}).`;
+    },
+
+    clearMeal: async (args) => {
+      const date = asString(args.date);
+      const slot = asSlot(args.slot);
+      if (!ISO_DATE.test(date)) return "Date invalide (format attendu : AAAA-MM-JJ).";
+      if (!slot) return "Le créneau doit être « midi » ou « soir ».";
+      const { data, error } = await supabase
+        .from("meal_plans")
+        .delete()
+        .eq("family_id", familyId)
+        .eq("date", date)
+        .eq("slot", slot)
+        .select("id");
+      if (error) throw error;
+      return `Repas retiré : ${data?.length ?? 0} créneau (${date}, ${slot}).`;
     },
   };
 }
