@@ -49,6 +49,7 @@ export type Database = {
           name: string;
           created_by: string | null;
           ai_min_age: number | null;
+          shopping_reminder_day: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -57,6 +58,7 @@ export type Database = {
           name: string;
           created_by?: string | null;
           ai_min_age?: number | null;
+          shopping_reminder_day?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -65,8 +67,99 @@ export type Database = {
           name?: string;
           created_by?: string | null;
           ai_min_age?: number | null;
+          shopping_reminder_day?: number | null;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      chores: {
+        Row: {
+          id: string;
+          family_id: string;
+          title: string;
+          assigned_to: string | null;
+          due_date: string | null;
+          done: boolean;
+          done_at: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_id: string;
+          title: string;
+          assigned_to?: string | null;
+          due_date?: string | null;
+          done?: boolean;
+          done_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          family_id?: string;
+          title?: string;
+          assigned_to?: string | null;
+          due_date?: string | null;
+          done?: boolean;
+          done_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      meal_plans: {
+        Row: {
+          id: string;
+          family_id: string;
+          date: string;
+          slot: string;
+          recipe_id: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_id: string;
+          date: string;
+          slot: string;
+          recipe_id?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          family_id?: string;
+          date?: string;
+          slot?: string;
+          recipe_id?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      suggestion_votes: {
+        Row: {
+          suggestion_id: string;
+          user_id: string;
+          family_id: string;
+          created_at: string;
+        };
+        Insert: {
+          suggestion_id: string;
+          user_id: string;
+          family_id: string;
+          created_at?: string;
+        };
+        Update: {
+          suggestion_id?: string;
+          user_id?: string;
+          family_id?: string;
+          created_at?: string;
         };
         Relationships: [];
       };
@@ -479,6 +572,10 @@ export type Database = {
       };
       set_family_ai_min_age: {
         Args: { p_family_id: string; p_min_age: number | null };
+        Returns: Database["public"]["Tables"]["families"]["Row"];
+      };
+      set_family_shopping_day: {
+        Args: { p_family_id: string; p_day: number | null };
         Returns: Database["public"]["Tables"]["families"]["Row"];
       };
       shares_family_with: {

@@ -10,6 +10,7 @@ import {
   getPendingInvites,
   joinFamily,
   setFamilyAiMinAge,
+  setFamilyShoppingDay,
   setMemberBirthDate,
   setMemberPermission,
   setMemberRole,
@@ -88,5 +89,11 @@ export function useSetMemberBirthDate(familyId: string) {
 export function useSetFamilyAiMinAge(familyId: string) {
   return useMutation({
     mutationFn: (minAge: number | null) => setFamilyAiMinAge(familyId, minAge),
+  });
+}
+
+export function useSetFamilyShoppingDay(familyId: string) {
+  return useMutation({
+    mutationFn: (day: number | null) => setFamilyShoppingDay(familyId, day),
   });
 }

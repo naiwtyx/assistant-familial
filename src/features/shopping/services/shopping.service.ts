@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { ShoppingItem } from "@/types/db";
 
+import { categorizeItem } from "../lib/categorize";
 import type { AddShoppingItemInput, UpdateShoppingItemInput } from "../schemas/shopping.schema";
 
 /**
@@ -35,6 +36,7 @@ export async function addShoppingItem(
       family_id: familyId,
       name: input.name,
       quantity: input.quantity,
+      category: categorizeItem(input.name),
       created_by: user?.id ?? null,
     })
     .select()
@@ -76,6 +78,7 @@ export async function addShoppingItems(
     name: string;
     quantity: number;
     unit: string | null;
+    category: string | null;
     created_by: string | null;
   }[] = [];
 
@@ -94,6 +97,7 @@ export async function addShoppingItems(
         name: item.name,
         quantity: item.quantity,
         unit: item.unit,
+        category: categorizeItem(item.name),
         created_by: user?.id ?? null,
       });
     }

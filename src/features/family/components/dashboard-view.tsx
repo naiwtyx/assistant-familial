@@ -2,6 +2,8 @@
 
 import {
   BookOpen,
+  CalendarDays,
+  CheckSquare,
   Lightbulb,
   Package,
   ShoppingCart,
@@ -20,6 +22,8 @@ const SHORTCUTS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/courses", label: "Courses", icon: ShoppingCart },
   { href: "/inventaire", label: "Inventaire", icon: Package },
   { href: "/recettes", label: "Recettes", icon: BookOpen },
+  { href: "/repas", label: "Repas", icon: CalendarDays },
+  { href: "/taches", label: "Tâches", icon: CheckSquare },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
   { href: "/idees", label: "Idées", icon: Lightbulb },
 ];

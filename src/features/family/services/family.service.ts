@@ -120,6 +120,16 @@ export async function setFamilyAiMinAge(familyId: string, minAge: number | null)
   if (error) throw error;
 }
 
+/** Jour de rappel des courses (0 = dimanche … 6 = samedi ; `null` = désactivé). Parents. */
+export async function setFamilyShoppingDay(familyId: string, day: number | null): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("set_family_shopping_day", {
+    p_family_id: familyId,
+    p_day: day,
+  });
+  if (error) throw error;
+}
+
 export type PendingInvite = FamilyInvite & { authorName: string | null };
 
 /** Invitations en attente d'approbation (créées par des membres). */

@@ -5,12 +5,14 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { categoryLabel } from "@/config/constants";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { isAuthorized } from "@/features/family/lib/roles";
 import { useAddCheckedItemsToInventory } from "@/features/inventory/hooks/use-inventory";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 import { useShoppingList } from "../hooks/use-shopping-list";
+import { groupByRayon } from "../lib/categorize";
 import { AddItemForm } from "./add-item-form";
 import { ShoppingItemRow } from "./shopping-item-row";
 
@@ -124,13 +126,39 @@ export function ShoppingListView() {
         </div>
       ) : (
         <div className="flex flex-col gap-1">
-          <ul className="divide-border divide-y">
-            {toBuy.map((item) => (
-              <li key={item.id}>
-                <ShoppingItemRow item={item} familyId={family.id} />
-              </li>
-            ))}
-          </ul>
+          {(() => {
+            const groups = groupByRayon(toBuy);
+            // Un seul rayon -> liste simple, sans en-tête inutile.
+            if (groups.length <= 1) {
+              return (
+                <ul className="divide-border divide-y">
+                  {toBuy.map((item) => (
+                    <li key={item.id}>
+                      <ShoppingItemRow item={item} familyId={family.id} />
+                    </li>
+                  ))}
+                </ul>
+              );
+            }
+            return (
+              <div className="flex flex-col gap-4">
+                {groups.map((group) => (
+                  <div key={group.key}>
+                    <p className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                      {categoryLabel(group.key)}
+                    </p>
+                    <ul className="divide-border divide-y">
+                      {group.items.map((item) => (
+                        <li key={item.id}>
+                          <ShoppingItemRow item={item} familyId={family.id} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {bought.length > 0 ? (
             <div className="mt-4">

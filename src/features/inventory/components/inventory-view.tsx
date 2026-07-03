@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Package, Plus } from "lucide-react";
+import { AlertTriangle, Camera, Package, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -8,14 +8,31 @@ import { Button } from "@/components/ui/button";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 
 import { useInventory } from "../hooks/use-inventory";
+import { getExpiryStatus } from "../lib/expiry";
 import { InventoryFormDialog } from "./inventory-form-dialog";
 import { InventoryItemCard } from "./inventory-item-card";
+
+// Ordre de tri : périmés d'abord, puis bientôt périmés, puis le reste.
+const EXPIRY_RANK: Record<string, number> = { expired: 0, soon: 1 };
 
 export function InventoryView() {
   const family = useActiveFamily();
   const router = useRouter();
   const { data: items, isLoading, isError } = useInventory(family.id);
   const [adding, setAdding] = useState(false);
+
+  const expiredCount =
+    items?.filter((item) => getExpiryStatus(item.expiry_date) === "expired").length ?? 0;
+  const soonCount =
+    items?.filter((item) => getExpiryStatus(item.expiry_date) === "soon").length ?? 0;
+
+  const sortedItems = items
+    ? [...items].sort(
+        (a, b) =>
+          (EXPIRY_RANK[getExpiryStatus(a.expiry_date) ?? ""] ?? 2) -
+          (EXPIRY_RANK[getExpiryStatus(b.expiry_date) ?? ""] ?? 2),
+      )
+    : [];
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
@@ -40,6 +57,25 @@ export function InventoryView() {
         </div>
       </header>
 
+      {expiredCount > 0 || soonCount > 0 ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <div className="flex flex-col">
+            {expiredCount > 0 ? (
+              <span>
+                <strong>{expiredCount}</strong> produit{expiredCount > 1 ? "s" : ""} périmé
+                {expiredCount > 1 ? "s" : ""}
+              </span>
+            ) : null}
+            {soonCount > 0 ? (
+              <span>
+                <strong>{soonCount}</strong> produit{soonCount > 1 ? "s" : ""} à consommer bientôt
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Chargement…</p>
       ) : isError ? (
@@ -55,7 +91,7 @@ export function InventoryView() {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {items?.map((item) => (
+          {sortedItems.map((item) => (
             <InventoryItemCard key={item.id} item={item} familyId={family.id} />
           ))}
         </div>

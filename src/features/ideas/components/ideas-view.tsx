@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Lightbulb, Send, Trash2 } from "lucide-react";
+import { ArrowBigUp, Check, Lightbulb, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import {
   useDeleteSuggestion,
   useSetSuggestionDone,
   useSuggestions,
+  useToggleSuggestionVote,
 } from "../hooks/use-ideas";
 
 export function IdeasView() {
@@ -27,6 +28,7 @@ export function IdeasView() {
   const addSuggestion = useAddSuggestion(family.id);
   const setDone = useSetSuggestionDone(family.id);
   const removeSuggestion = useDeleteSuggestion(family.id);
+  const toggleVote = useToggleSuggestionVote(family.id);
 
   const [content, setContent] = useState("");
 
@@ -101,6 +103,20 @@ export function IdeasView() {
                 <p className={cn("text-sm break-words", idea.done && "line-through")}>{idea.content}</p>
                 <p className="text-muted-foreground text-xs">{idea.authorName ?? "Quelqu'un"}</p>
               </div>
+
+              <Button
+                variant={idea.hasVoted ? "default" : "outline"}
+                size="sm"
+                className="h-auto shrink-0 flex-col gap-0 px-2 py-1"
+                disabled={toggleVote.isPending}
+                onClick={() =>
+                  toggleVote.mutate({ id: idea.id, hasVoted: idea.hasVoted }, { onError })
+                }
+                aria-label={idea.hasVoted ? "Retirer mon vote" : "Voter pour cette idée"}
+              >
+                <ArrowBigUp className="size-4" />
+                <span className="text-xs tabular-nums">{idea.voteCount}</span>
+              </Button>
 
               {canModerate || idea.created_by === userId ? (
                 <Button

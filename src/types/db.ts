@@ -15,3 +15,6 @@ export type InventoryItem = Tables["inventory_items"]["Row"];
 export type Recipe = Tables["recipes"]["Row"];
 export type RecipeIngredient = Tables["recipe_ingredients"]["Row"];
 export type ActivityLog = Tables["activity_log"]["Row"];
+export type Chore = Tables["chores"]["Row"];
+export type MealPlan = Tables["meal_plans"]["Row"];
+export type SuggestionVote = Tables["suggestion_votes"]["Row"];

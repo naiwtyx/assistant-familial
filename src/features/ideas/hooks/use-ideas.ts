@@ -9,6 +9,7 @@ import {
   deleteSuggestion,
   getSuggestions,
   setSuggestionDone,
+  toggleSuggestionVote,
 } from "../services/ideas.service";
 
 export const ideasKeys = {
@@ -21,6 +22,7 @@ export function useSuggestions(familyId: string) {
     queryFn: () => getSuggestions(familyId),
   });
   useRealtimeTable("suggestions", familyId, ideasKeys.list(familyId));
+  useRealtimeTable("suggestion_votes", familyId, ideasKeys.list(familyId));
   return query;
 }
 
@@ -49,6 +51,15 @@ export function useDeleteSuggestion(familyId: string) {
   const invalidate = useInvalidate(familyId);
   return useMutation({
     mutationFn: (id: string) => deleteSuggestion(id),
+    onSettled: invalidate,
+  });
+}
+
+export function useToggleSuggestionVote(familyId: string) {
+  const invalidate = useInvalidate(familyId);
+  return useMutation({
+    mutationFn: ({ id, hasVoted }: { id: string; hasVoted: boolean }) =>
+      toggleSuggestionVote(id, familyId, hasVoted),
     onSettled: invalidate,
   });
 }
