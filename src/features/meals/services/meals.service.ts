@@ -1,4 +1,7 @@
+import { getInventory } from "@/features/inventory/services/inventory.service";
+import { compareIngredientsWithInventory, type IngredientNeed } from "@/features/recipes/lib/compare";
 import { addShoppingItems } from "@/features/shopping/services/shopping.service";
+import { normalizeName } from "@/lib/normalize";
 import { createClient } from "@/lib/supabase/client";
 import type { MealPlan } from "@/types/db";
 
@@ -73,9 +76,9 @@ export async function clearMeal(familyId: string, date: string, slot: MealSlot):
 }
 
 /**
- * Ajoute à la liste de courses tous les ingrédients des recettes planifiées
- * sur la période. Agrège les doublons (même ingrédient dans plusieurs repas).
- * Retourne le nombre d'articles ajoutés/fusionnés.
+ * Ajoute à la liste de courses uniquement les ingrédients MANQUANTS des recettes
+ * planifiées (comparés à l'inventaire). Agrège les doublons entre repas.
+ * Retourne le nombre d'articles ajoutés.
  */
 export async function addPlannedIngredientsToShopping(
   familyId: string,
@@ -91,9 +94,9 @@ export async function addPlannedIngredientsToShopping(
     .in("recipe_id", uniqueRecipeIds);
   if (error) throw error;
 
-  const aggregated = new Map<string, { name: string; quantity: number; unit: string | null }>();
+  const aggregated = new Map<string, IngredientNeed>();
   for (const ingredient of ingredients ?? []) {
-    const key = ingredient.name.trim().toLowerCase();
+    const key = normalizeName(ingredient.name);
     const existing = aggregated.get(key);
     if (existing) existing.quantity += ingredient.quantity;
     else
@@ -103,8 +106,50 @@ export async function addPlannedIngredientsToShopping(
         unit: ingredient.unit,
       });
   }
+  const needs = [...aggregated.values()];
+  if (needs.length === 0) return 0;
 
-  const items = [...aggregated.values()];
-  await addShoppingItems(familyId, items);
-  return items.length;
+  const inventory = await getInventory(familyId);
+  const missing = compareIngredientsWithInventory(needs, inventory)
+    .filter((row) => row.status !== "in_stock")
+    .map((row) => ({
+      name: row.name,
+      quantity: Math.max(1, Math.ceil(row.missing)),
+      unit: row.unit,
+    }));
+
+  await addShoppingItems(familyId, missing);
+  return missing.length;
+}
+
+/**
+ * « J'ai cuisiné ce repas » : déduit de l'inventaire les ingrédients de la recette
+ * (rapprochement par nom). Retourne le nombre de produits mis à jour.
+ */
+export async function cookMeal(familyId: string, recipeId: string): Promise<number> {
+  const supabase = createClient();
+  const { data: ingredients, error } = await supabase
+    .from("recipe_ingredients")
+    .select("name,quantity")
+    .eq("recipe_id", recipeId);
+  if (error) throw error;
+  if (!ingredients || ingredients.length === 0) return 0;
+
+  const inventory = await getInventory(familyId);
+  const inventoryByName = new Map(inventory.map((item) => [normalizeName(item.name), item]));
+
+  let updated = 0;
+  for (const ingredient of ingredients) {
+    const item = inventoryByName.get(normalizeName(ingredient.name));
+    if (!item) continue;
+    const next = Math.max(0, item.quantity - ingredient.quantity);
+    if (next === item.quantity) continue;
+    const { error: updateError } = await supabase
+      .from("inventory_items")
+      .update({ quantity: next })
+      .eq("id", item.id);
+    if (updateError) throw updateError;
+    updated += 1;
+  }
+  return updated;
 }

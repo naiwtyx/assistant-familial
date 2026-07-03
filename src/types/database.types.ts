@@ -82,6 +82,8 @@ export type Database = {
           due_date: string | null;
           done: boolean;
           done_at: string | null;
+          points: number;
+          recurrence: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -93,6 +95,8 @@ export type Database = {
           due_date?: string | null;
           done?: boolean;
           done_at?: string | null;
+          points?: number;
+          recurrence?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
@@ -104,6 +108,41 @@ export type Database = {
           due_date?: string | null;
           done?: boolean;
           done_at?: string | null;
+          points?: number;
+          recurrence?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      events: {
+        Row: {
+          id: string;
+          family_id: string;
+          title: string;
+          event_date: string;
+          event_time: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_id: string;
+          title: string;
+          event_date: string;
+          event_time?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          family_id?: string;
+          title?: string;
+          event_date?: string;
+          event_time?: string | null;
+          note?: string | null;
           created_by?: string | null;
           created_at?: string;
         };

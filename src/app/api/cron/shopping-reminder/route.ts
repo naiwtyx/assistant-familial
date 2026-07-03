@@ -67,5 +67,44 @@ export async function GET(request: Request) {
     notified += subs.length - stale.length;
   }
 
-  return NextResponse.json({ families: families?.length ?? 0, notified });
+  // Rappels d'agenda : événements du jour (toutes familles confondues).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const { data: events } = await admin
+    .from("events")
+    .select("family_id,title,event_time")
+    .eq("event_date", todayIso);
+
+  let eventsNotified = 0;
+  for (const event of events ?? []) {
+    const { data: members } = await admin
+      .from("family_members")
+      .select("user_id")
+      .eq("family_id", event.family_id);
+    const userIds = (members ?? []).map((member) => member.user_id);
+    if (userIds.length === 0) continue;
+
+    const { data: subs } = await admin
+      .from("push_subscriptions")
+      .select("endpoint,p256dh,auth")
+      .in("user_id", userIds);
+    if (!subs || subs.length === 0) continue;
+
+    const time = event.event_time ? ` à ${event.event_time.slice(0, 5)}` : "";
+    const stale = await sendPush(subs, {
+      title: "Aujourd'hui",
+      body: `${event.title}${time}`,
+      url: "/agenda",
+    });
+    if (stale.length > 0) {
+      await admin.from("push_subscriptions").delete().in("endpoint", stale);
+    }
+    eventsNotified += subs.length - stale.length;
+  }
+
+  return NextResponse.json({
+    families: families?.length ?? 0,
+    notified,
+    events: events?.length ?? 0,
+    eventsNotified,
+  });
 }

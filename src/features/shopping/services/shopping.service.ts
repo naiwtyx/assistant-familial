@@ -36,6 +36,7 @@ export async function addShoppingItem(
       family_id: familyId,
       name: input.name,
       quantity: input.quantity,
+      unit: input.unit && input.unit.length > 0 ? input.unit : null,
       category: categorizeItem(input.name),
       created_by: user?.id ?? null,
     })

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { CalendarDays, ChefHat, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import {
   useAddPlannedToShopping,
   useClearMeal,
+  useCookMeal,
   useMealPlans,
   useSetMealRecipe,
 } from "../hooks/use-meals";
@@ -36,6 +37,7 @@ export function MealsView() {
   const setMeal = useSetMealRecipe(family.id);
   const clearMeal = useClearMeal(family.id);
   const addToShopping = useAddPlannedToShopping(family.id);
+  const cook = useCookMeal(family.id);
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
 
@@ -67,7 +69,24 @@ export function MealsView() {
       return;
     }
     addToShopping.mutate(recipeIds, {
-      onSuccess: (count) => toast.success(`${count} ingrédient(s) ajouté(s) aux courses`),
+      onSuccess: (count) =>
+        toast.success(
+          count === 0
+            ? "Tu as déjà tout en stock ✅"
+            : `${count} ingrédient(s) manquant(s) ajouté(s) aux courses`,
+        ),
+      onError,
+    });
+  }
+
+  function handleCook(recipeId: string) {
+    cook.mutate(recipeId, {
+      onSuccess: (count) =>
+        toast.success(
+          count === 0
+            ? "Aucun produit correspondant dans l'inventaire."
+            : `${count} produit(s) déduit(s) de l'inventaire`,
+        ),
       onError,
     });
   }
@@ -133,6 +152,19 @@ export function MealsView() {
                         </option>
                       ))}
                     </NativeSelect>
+                    {meal?.recipe_id ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0"
+                        disabled={cook.isPending}
+                        onClick={() => handleCook(meal.recipe_id as string)}
+                        aria-label="J'ai cuisiné ce repas (déduire de l'inventaire)"
+                        title="J'ai cuisiné : déduire de l'inventaire"
+                      >
+                        <ChefHat className="size-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 );
               })}

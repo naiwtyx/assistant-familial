@@ -33,7 +33,7 @@ function useInvalidate(familyId: string) {
 export function useAddChore(familyId: string) {
   const invalidate = useInvalidate(familyId);
   return useMutation({
-    mutationFn: (input: AddChoreInput) => addChore(familyId, input),
+    mutationFn: (input: AddChoreInput) => addChore(input),
     onSettled: invalidate,
   });
 }

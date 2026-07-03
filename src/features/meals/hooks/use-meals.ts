@@ -8,6 +8,7 @@ import { addDays, toISODate } from "../lib/week";
 import {
   addPlannedIngredientsToShopping,
   clearMeal,
+  cookMeal,
   getMealPlans,
   setMealRecipe,
   type MealSlot,
@@ -55,5 +56,11 @@ export function useClearMeal(familyId: string) {
 export function useAddPlannedToShopping(familyId: string) {
   return useMutation({
     mutationFn: (recipeIds: string[]) => addPlannedIngredientsToShopping(familyId, recipeIds),
+  });
+}
+
+export function useCookMeal(familyId: string) {
+  return useMutation({
+    mutationFn: (recipeId: string) => cookMeal(familyId, recipeId),
   });
 }

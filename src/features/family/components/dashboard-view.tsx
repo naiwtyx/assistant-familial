@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  CalendarClock,
   CalendarDays,
   CheckSquare,
   Lightbulb,
@@ -24,6 +25,7 @@ const SHORTCUTS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/recettes", label: "Recettes", icon: BookOpen },
   { href: "/repas", label: "Repas", icon: CalendarDays },
   { href: "/taches", label: "Tâches", icon: CheckSquare },
+  { href: "/agenda", label: "Agenda", icon: CalendarClock },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
   { href: "/idees", label: "Idées", icon: Lightbulb },
 ];

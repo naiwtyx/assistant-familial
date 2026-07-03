@@ -66,7 +66,7 @@ export function useAddShoppingItem(familyId: string) {
         family_id: familyId,
         name: input.name,
         quantity: input.quantity,
-        unit: null,
+        unit: input.unit && input.unit.length > 0 ? input.unit : null,
         category: null,
         is_checked: false,
         checked_by: null,

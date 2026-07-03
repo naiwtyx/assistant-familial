@@ -3,6 +3,7 @@ import { z } from "zod";
 export const addShoppingItemSchema = z.object({
   name: z.string().trim().min(1, "Nom requis").max(120, "120 caractères maximum"),
   quantity: z.number().positive("Quantité invalide").max(9999),
+  unit: z.string().optional(),
 });
 
 export type AddShoppingItemInput = z.infer<typeof addShoppingItemSchema>;

@@ -6,7 +6,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { unitLabel } from "@/config/constants";
+import { NativeSelect } from "@/components/ui/native-select";
+import { UNITS, unitLabel } from "@/config/constants";
 import { useInventory } from "@/features/inventory/hooks/use-inventory";
 import { findInventoryMatches } from "@/features/inventory/lib/find-inventory-matches";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -22,6 +23,7 @@ export function AddItemForm({ familyId }: { familyId: string }) {
   const { data: inventory } = useInventory(familyId);
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [unit, setUnit] = useState("");
 
   const matches = findInventoryMatches(name, inventory ?? []).slice(0, 2);
 
@@ -31,36 +33,51 @@ export function AddItemForm({ familyId }: { familyId: string }) {
     if (!trimmed) return;
 
     addItem.mutate(
-      { name: trimmed, quantity },
+      { name: trimmed, quantity, unit: unit || undefined },
       { onError: (error) => toast.error(getErrorMessage(error)) },
     );
     setName("");
     setQuantity(1);
+    setUnit("");
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
         <Input
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Ajouter un article…"
           aria-label="Nom de l'article"
           autoComplete="off"
-          className="flex-1"
         />
-        <Input
-          type="number"
-          min={1}
-          max={9999}
-          value={quantity}
-          onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
-          aria-label="Quantité"
-          className="w-16 text-center"
-        />
-        <Button type="submit" size="icon" disabled={!name.trim()} aria-label="Ajouter l'article">
-          <Plus className="size-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={1}
+            max={9999}
+            value={quantity}
+            onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+            aria-label="Quantité"
+            className="w-16 text-center"
+          />
+          <NativeSelect
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+            aria-label="Unité"
+            className="flex-1"
+          >
+            <option value="">Unité (option.)</option>
+            {UNITS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <Button type="submit" size="icon" disabled={!name.trim()} aria-label="Ajouter l'article">
+            <Plus className="size-4" />
+          </Button>
+        </div>
       </form>
 
       {matches.length > 0 ? (

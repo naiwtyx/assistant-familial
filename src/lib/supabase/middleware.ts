@@ -47,6 +47,12 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  if (!user && pathname.startsWith("/api/") && !pathname.startsWith("/api/cron/")) {
+    // Les routes API renvoient du JSON, pas une redirection HTML.
+    // (Les crons n'ont pas de session : ils sont protégés par CRON_SECRET.)
+    return NextResponse.json({ error: "Authentification requise." }, { status: 401 });
+  }
+
   if (!user && !isPublicRoute(pathname)) {
     return redirectTo("/login", request, supabaseResponse);
   }

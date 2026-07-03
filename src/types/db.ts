@@ -18,3 +18,4 @@ export type ActivityLog = Tables["activity_log"]["Row"];
 export type Chore = Tables["chores"]["Row"];
 export type MealPlan = Tables["meal_plans"]["Row"];
 export type SuggestionVote = Tables["suggestion_votes"]["Row"];
+export type FamilyEvent = Tables["events"]["Row"];

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, Plus, Trash2, User } from "lucide-react";
+import { CheckSquare, Plus, Repeat, Trash2, Trophy, User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -15,14 +15,41 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 
 import { useAddChore, useChores, useDeleteChore, useSetChoreDone } from "../hooks/use-chores";
+import type { ChoreRecurrence, ChoreWithAssignee } from "../services/chores.service";
 
 const TODAY = new Date().toISOString().slice(0, 10);
+const POINTS_OPTIONS = [1, 2, 3, 5, 10];
 
 function formatDue(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-  });
+  return new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+}
+
+function startOfWeek(): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  const day = date.getDay();
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+  return date;
+}
+
+/** Classement des points gagnés cette semaine (tâches faites). */
+function computeLeaderboard(
+  chores: ChoreWithAssignee[] | undefined,
+): { name: string; points: number }[] {
+  if (!chores) return [];
+  const weekStart = startOfWeek().getTime();
+  const byAssignee = new Map<string, { name: string; points: number }>();
+  for (const chore of chores) {
+    if (!chore.done || !chore.done_at || !chore.assigned_to) continue;
+    if (new Date(chore.done_at).getTime() < weekStart) continue;
+    const entry = byAssignee.get(chore.assigned_to) ?? {
+      name: chore.assigneeName ?? "Membre",
+      points: 0,
+    };
+    entry.points += chore.points;
+    byAssignee.set(chore.assigned_to, entry);
+  }
+  return [...byAssignee.values()].sort((a, b) => b.points - a.points);
 }
 
 export function ChoresView() {
@@ -38,6 +65,10 @@ export function ChoresView() {
   const [title, setTitle] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [points, setPoints] = useState(1);
+  const [recurrence, setRecurrence] = useState<"" | ChoreRecurrence>("");
+
+  const leaderboard = computeLeaderboard(chores);
 
   function onError(error: unknown) {
     toast.error(getErrorMessage(error));
@@ -48,13 +79,21 @@ export function ChoresView() {
     const trimmed = title.trim();
     if (!trimmed) return;
     addChore.mutate(
-      { title: trimmed, assignedTo: assignedTo || null, dueDate: dueDate || null },
+      {
+        title: trimmed,
+        assignedTo: assignedTo || null,
+        dueDate: dueDate || null,
+        points,
+        recurrence: recurrence || null,
+      },
       {
         onError,
         onSuccess: () => {
           setTitle("");
           setAssignedTo("");
           setDueDate("");
+          setPoints(1);
+          setRecurrence("");
         },
       },
     );
@@ -69,6 +108,26 @@ export function ChoresView() {
         </h1>
         <p className="text-muted-foreground text-sm">Répartissez les corvées de la famille.</p>
       </header>
+
+      {leaderboard.length > 0 ? (
+        <div className="rounded-xl border bg-amber-500/5 p-3">
+          <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <Trophy className="size-4 text-amber-500" />
+            Classement de la semaine
+          </p>
+          <ul className="flex flex-col gap-1">
+            {leaderboard.map((entry, index) => (
+              <li key={entry.name + index} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground w-4 tabular-nums">{index + 1}.</span>
+                  {entry.name}
+                </span>
+                <span className="font-medium tabular-nums">{entry.points} pts</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <form onSubmit={submit} className="flex flex-col gap-2">
         <Input
@@ -100,6 +159,30 @@ export function ChoresView() {
             aria-label="Échéance"
             className="w-36"
           />
+        </div>
+        <div className="flex gap-2">
+          <NativeSelect
+            value={points}
+            onChange={(event) => setPoints(Number(event.target.value))}
+            aria-label="Points"
+            className="flex-1"
+          >
+            {POINTS_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {value} point{value > 1 ? "s" : ""}
+              </option>
+            ))}
+          </NativeSelect>
+          <NativeSelect
+            value={recurrence}
+            onChange={(event) => setRecurrence(event.target.value as "" | ChoreRecurrence)}
+            aria-label="Répétition"
+            className="flex-1"
+          >
+            <option value="">Ne pas répéter</option>
+            <option value="daily">Chaque jour</option>
+            <option value="weekly">Chaque semaine</option>
+          </NativeSelect>
           <Button type="submit" size="icon" disabled={!title.trim()} aria-label="Ajouter la tâche">
             <Plus className="size-4" />
           </Button>
@@ -139,11 +222,20 @@ export function ChoresView() {
                   <p className={cn("text-sm break-words", chore.done && "line-through")}>
                     {chore.title}
                   </p>
-                  <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                  <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                     {chore.assigneeName ? (
                       <span className="flex items-center gap-1">
                         <User className="size-3" />
                         {chore.assigneeName}
+                      </span>
+                    ) : null}
+                    <span>
+                      {chore.points} pt{chore.points > 1 ? "s" : ""}
+                    </span>
+                    {chore.recurrence ? (
+                      <span className="flex items-center gap-1">
+                        <Repeat className="size-3" />
+                        {chore.recurrence === "weekly" ? "hebdo" : "quotidien"}
                       </span>
                     ) : null}
                     {chore.due_date ? (

@@ -1,12 +1,15 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Chore } from "@/types/db";
 
+export type ChoreRecurrence = "daily" | "weekly";
 export type ChoreWithAssignee = Chore & { assigneeName: string | null };
 
 export type AddChoreInput = {
   title: string;
   assignedTo: string | null;
   dueDate: string | null;
+  points: number;
+  recurrence: ChoreRecurrence | null;
 };
 
 /** Tâches de la famille, enrichies du prénom de la personne assignée. */
@@ -37,27 +40,69 @@ export async function getChores(familyId: string): Promise<ChoreWithAssignee[]> 
   }));
 }
 
-export async function addChore(familyId: string, input: AddChoreInput): Promise<void> {
+/** Crée une tâche via l'API serveur (qui notifie la personne assignée). */
+export async function addChore(input: AddChoreInput): Promise<void> {
+  const response = await fetch("/api/chores/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Impossible de créer la tâche.");
+  }
+}
+
+function nextDueDate(current: string | null, recurrence: ChoreRecurrence): string {
+  const base = current ? new Date(`${current}T00:00:00`) : new Date();
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + (recurrence === "weekly" ? 7 : 1));
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, "0");
+  const day = String(base.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Marque une tâche faite/à faire. Si elle est récurrente et vient d'être faite,
+ * la prochaine occurrence est recréée automatiquement (échéance décalée).
+ */
+export async function setChoreDone(id: string, done: boolean): Promise<void> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { error } = await supabase.from("chores").insert({
-    family_id: familyId,
-    title: input.title.trim(),
-    assigned_to: input.assignedTo,
-    due_date: input.dueDate,
-    created_by: user?.id ?? null,
-  });
-  if (error) throw error;
-}
 
-export async function setChoreDone(id: string, done: boolean): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
+  const { data: chore, error } = await supabase
     .from("chores")
     .update({ done, done_at: done ? new Date().toISOString() : null })
-    .eq("id", id);
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+
+  if (done && chore.recurrence === "daily") {
+    await createNextOccurrence(chore, "daily", user?.id ?? null);
+  } else if (done && chore.recurrence === "weekly") {
+    await createNextOccurrence(chore, "weekly", user?.id ?? null);
+  }
+}
+
+async function createNextOccurrence(
+  chore: Chore,
+  recurrence: ChoreRecurrence,
+  createdBy: string | null,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("chores").insert({
+    family_id: chore.family_id,
+    title: chore.title,
+    assigned_to: chore.assigned_to,
+    due_date: nextDueDate(chore.due_date, recurrence),
+    points: chore.points,
+    recurrence,
+    created_by: createdBy,
+  });
   if (error) throw error;
 }
 
