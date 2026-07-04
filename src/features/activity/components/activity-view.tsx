@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { useMyMembership } from "@/features/family/components/family-provider";
 
 import { useActivity } from "../hooks/use-activity";
@@ -63,7 +64,7 @@ export function ActivityView() {
       </header>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Chargement…</p>
+        <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;activité.</p>
       ) : entries && entries.length === 0 ? (

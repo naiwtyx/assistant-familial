@@ -4,6 +4,7 @@ import { CalendarClock, Plus, Repeat, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -139,7 +140,7 @@ export function EventsView() {
       </form>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Chargement…</p>
+        <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;agenda.</p>
       ) : groups.length === 0 ? (

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/shared/bottom-nav";
+import { OfflineSupport } from "@/components/shared/offline-support";
 import { FamilyProvider } from "@/features/family/components/family-provider";
 import { canMemberUseAi } from "@/features/family/lib/ai-access";
 import { createClient } from "@/lib/supabase/server";
@@ -54,6 +55,7 @@ export default async function WithFamilyLayout({ children }: { children: React.R
         canUseAi,
       }}
     >
+      <OfflineSupport />
       {/* Zone sûre en haut (encoche) + espace en bas pour la barre fixe. */}
       <div className="pt-[env(safe-area-inset-top)] pb-24">{children}</div>
       <BottomNav />

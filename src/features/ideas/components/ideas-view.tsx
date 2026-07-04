@@ -4,6 +4,7 @@ import { ArrowBigUp, Check, Lightbulb, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -70,7 +71,7 @@ export function IdeasView() {
       </form>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Chargement…</p>
+        <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger les idées.</p>
       ) : ideas && ideas.length === 0 ? (

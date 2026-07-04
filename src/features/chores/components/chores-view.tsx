@@ -4,6 +4,7 @@ import { CheckSquare, Plus, Repeat, Trash2, Trophy, User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -190,7 +191,7 @@ export function ChoresView() {
       </form>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Chargement…</p>
+        <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger les tâches.</p>
       ) : chores && chores.length === 0 ? (

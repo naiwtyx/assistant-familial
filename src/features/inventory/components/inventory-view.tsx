@@ -4,6 +4,7 @@ import { AlertTriangle, Camera, Package, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { Button } from "@/components/ui/button";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 
@@ -77,7 +78,7 @@ export function InventoryView() {
       ) : null}
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Chargement…</p>
+        <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;inventaire.</p>
       ) : items && items.length === 0 ? (

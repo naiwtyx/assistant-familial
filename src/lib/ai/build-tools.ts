@@ -157,6 +157,85 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "getChores",
+      description: "Liste les tâches/corvées de la famille (intitulé, assignée à, faite, points).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "addChore",
+      description:
+        "Crée une tâche/corvée. Assigne-la à un membre par son prénom si demandé (vérifie les prénoms avec getFamilyMembers).",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Intitulé de la tâche" },
+          assigneeName: { type: "string", description: "Prénom du membre assigné (optionnel)" },
+          dueDate: { type: "string", description: "Échéance AAAA-MM-JJ (optionnel)" },
+          points: { type: "number", description: "Points (1 par défaut)" },
+          recurrence: {
+            type: "string",
+            enum: ["daily", "weekly"],
+            description: "Répétition (optionnel)",
+          },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getFamilyMembers",
+      description: "Liste les prénoms des membres de la famille (pour assigner des tâches).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getEvents",
+      description: "Liste les événements à venir de l'agenda familial.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "addEvent",
+      description: "Ajoute un événement à l'agenda familial (rendez-vous, activité).",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Titre de l'événement" },
+          date: { type: "string", description: "Date AAAA-MM-JJ" },
+          time: { type: "string", description: "Heure HH:MM (optionnel)" },
+          note: { type: "string", description: "Note (optionnel)" },
+        },
+        required: ["title", "date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getMonthlySpending",
+      description:
+        "Total des dépenses (tickets scannés) d'un mois, par catégorie. Réservé aux parents.",
+      parameters: {
+        type: "object",
+        properties: {
+          year: { type: "number", description: "Année, ex. 2026 (année courante par défaut)" },
+          month: { type: "number", description: "Mois 1-12 (mois courant par défaut)" },
+        },
+      },
+    },
+  },
 ];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -370,5 +449,143 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       if (error) throw error;
       return `Repas retiré : ${data?.length ?? 0} créneau (${date}, ${slot}).`;
     },
+
+    getFamilyMembers: async () => {
+      const members = await familyProfiles(supabase, familyId);
+      return JSON.stringify(members.map((member) => ({ name: member.name })));
+    },
+
+    getChores: async () => {
+      const { data, error } = await supabase
+        .from("chores")
+        .select("title,done,points,due_date,assigned_to")
+        .eq("family_id", familyId)
+        .order("done")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const members = await familyProfiles(supabase, familyId);
+      const nameById = new Map(members.map((member) => [member.id, member.name]));
+      return JSON.stringify(
+        (data ?? []).map((chore) => ({
+          title: chore.title,
+          done: chore.done,
+          points: chore.points,
+          dueDate: chore.due_date,
+          assignee: chore.assigned_to ? (nameById.get(chore.assigned_to) ?? null) : null,
+        })),
+      );
+    },
+
+    addChore: async (args) => {
+      const title = asString(args.title);
+      if (!title) return "Intitulé de tâche manquant.";
+      const assigneeName = args.assigneeName ? asString(args.assigneeName) : "";
+      let assignedTo: string | null = null;
+      if (assigneeName) {
+        const members = await familyProfiles(supabase, familyId);
+        const match = members.find(
+          (member) => member.name.trim().toLowerCase() === assigneeName.trim().toLowerCase(),
+        );
+        if (!match) {
+          return `Aucun membre nommé « ${assigneeName} ». Membres : ${members.map((m) => m.name).join(", ")}.`;
+        }
+        assignedTo = match.id;
+      }
+      const dueDate =
+        typeof args.dueDate === "string" && ISO_DATE.test(args.dueDate) ? args.dueDate : null;
+      const points = Math.min(10, Math.max(1, Math.round(asNumber(args.points, 1))));
+      const recurrence =
+        args.recurrence === "daily" || args.recurrence === "weekly" ? args.recurrence : null;
+
+      const { error } = await supabase.from("chores").insert({
+        family_id: familyId,
+        title,
+        assigned_to: assignedTo,
+        due_date: dueDate,
+        points,
+        recurrence,
+        created_by: userId,
+      });
+      if (error) throw error;
+      return `Tâche « ${title} » créée${assigneeName ? ` pour ${assigneeName}` : ""}.`;
+    },
+
+    getEvents: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("events")
+        .select("title,event_date,event_time,note")
+        .eq("family_id", familyId)
+        .gte("event_date", today)
+        .order("event_date");
+      if (error) throw error;
+      return JSON.stringify(data);
+    },
+
+    addEvent: async (args) => {
+      const title = asString(args.title);
+      const date = asString(args.date);
+      if (!title) return "Titre d'événement manquant.";
+      if (!ISO_DATE.test(date)) return "Date invalide (format attendu : AAAA-MM-JJ).";
+      const time = typeof args.time === "string" && /^\d{2}:\d{2}/.test(args.time) ? args.time : null;
+      const note = args.note ? asString(args.note) : null;
+
+      const { error } = await supabase.from("events").insert({
+        family_id: familyId,
+        title,
+        event_date: date,
+        event_time: time,
+        note,
+        created_by: userId,
+      });
+      if (error) throw error;
+      return `Événement « ${title} » ajouté à l'agenda le ${date}${time ? ` à ${time}` : ""}.`;
+    },
+
+    getMonthlySpending: async (args) => {
+      const now = new Date();
+      const year = Math.round(asNumber(args.year, now.getFullYear()));
+      const month = Math.round(asNumber(args.month, now.getMonth() + 1));
+      const start = `${year}-${String(month).padStart(2, "0")}-01`;
+      const endDate = new Date(year, month, 1);
+      const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const { data, error } = await supabase
+        .from("receipt_items")
+        .select("category,price")
+        .eq("family_id", familyId)
+        .gte("purchased_at", start)
+        .lt("purchased_at", end);
+      if (error) throw error;
+
+      let total = 0;
+      const byCategory = new Map<string, number>();
+      for (const item of data ?? []) {
+        const price = Number(item.price) || 0;
+        total += price;
+        const category = item.category ?? "other";
+        byCategory.set(category, (byCategory.get(category) ?? 0) + price);
+      }
+      return JSON.stringify({
+        month: `${year}-${String(month).padStart(2, "0")}`,
+        total: Number(total.toFixed(2)),
+        byCategory: Object.fromEntries(byCategory),
+      });
+    },
   };
+}
+
+/** Prénoms + identifiants des membres de la famille (pour l'IA). */
+async function familyProfiles(
+  supabase: Db,
+  familyId: string,
+): Promise<{ id: string; name: string }[]> {
+  const { data: members } = await supabase
+    .from("family_members")
+    .select("user_id")
+    .eq("family_id", familyId);
+  const ids = (members ?? []).map((member) => member.user_id);
+  if (ids.length === 0) return [];
+  const { data: profiles } = await supabase.from("profiles").select("id,display_name").in("id", ids);
+  return (profiles ?? []).map((profile) => ({ id: profile.id, name: profile.display_name }));
 }

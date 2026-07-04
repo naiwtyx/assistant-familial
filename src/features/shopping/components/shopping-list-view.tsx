@@ -4,6 +4,7 @@ import { Bell, PackagePlus, Share2, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { Button } from "@/components/ui/button";
 import { categoryLabel } from "@/config/constants";
 import { useMyMembership } from "@/features/family/components/family-provider";
@@ -112,7 +113,7 @@ export function ShoppingListView() {
       <AddItemForm familyId={family.id} />
 
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Chargement…</p>
+        <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger la liste.</p>
       ) : items && items.length === 0 ? (
