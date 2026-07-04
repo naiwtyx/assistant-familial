@@ -39,7 +39,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: ONE_DAY, buster: "v1" }}
+      persistOptions={{ persister, maxAge: ONE_DAY, buster: "v2" }}
     >
       {children}
     </PersistQueryClientProvider>

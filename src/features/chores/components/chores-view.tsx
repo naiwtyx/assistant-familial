@@ -17,7 +17,13 @@ import { cn } from "@/lib/utils";
 
 import { AssigneePicker } from "./assignee-picker";
 import { ChoreEditDialog } from "./chore-edit-dialog";
-import { useAddChore, useChores, useDeleteChore, useSetChoreDone } from "../hooks/use-chores";
+import {
+  useAddChore,
+  useChoreLeaderboard,
+  useChores,
+  useDeleteChore,
+  useSetChoreDone,
+} from "../hooks/use-chores";
 import type { ChoreRecurrence, ChoreWithAssignees } from "../services/chores.service";
 
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -25,36 +31,6 @@ const POINTS_OPTIONS = [1, 2, 3, 5, 10];
 
 function formatDue(date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
-}
-
-function startOfWeek(): Date {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  const day = date.getDay();
-  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-  return date;
-}
-
-/** Classement des points gagnés cette semaine (crédités à chaque destinataire). */
-function computeLeaderboard(
-  chores: ChoreWithAssignees[] | undefined,
-): { name: string; points: number }[] {
-  if (!chores) return [];
-  const weekStart = startOfWeek().getTime();
-  const byAssignee = new Map<string, { name: string; points: number }>();
-  for (const chore of chores) {
-    if (!chore.done || !chore.done_at) continue;
-    if (new Date(chore.done_at).getTime() < weekStart) continue;
-    chore.assignee_ids.forEach((id, index) => {
-      const entry = byAssignee.get(id) ?? {
-        name: chore.assigneeNames[index] ?? "Membre",
-        points: 0,
-      };
-      entry.points += chore.points;
-      byAssignee.set(id, entry);
-    });
-  }
-  return [...byAssignee.values()].sort((a, b) => b.points - a.points);
 }
 
 export function ChoresView() {
@@ -74,7 +50,7 @@ export function ChoresView() {
   const [recurrence, setRecurrence] = useState<"" | ChoreRecurrence>("");
   const [editing, setEditing] = useState<ChoreWithAssignees | null>(null);
 
-  const leaderboard = computeLeaderboard(chores);
+  const { data: leaderboard = [] } = useChoreLeaderboard(family.id);
 
   function onError(error: unknown) {
     toast.error(getErrorMessage(error));
@@ -222,7 +198,15 @@ export function ChoresView() {
                   checked={chore.done}
                   disabled={!canToggle}
                   onCheckedChange={(checked) =>
-                    setDone.mutate({ id: chore.id, done: checked === true }, { onError })
+                    setDone.mutate(
+                      { id: chore.id, done: checked === true },
+                      {
+                        onError,
+                        onSuccess: (next) => {
+                          if (next) toast.success(`Fait ! Prochaine fois le ${formatDue(next)}`);
+                        },
+                      },
+                    )
                   }
                   aria-label="Marquer comme faite"
                   className="mt-0.5"

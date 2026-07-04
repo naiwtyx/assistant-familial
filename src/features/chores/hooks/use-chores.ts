@@ -7,6 +7,7 @@ import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import {
   addChore,
   deleteChore,
+  getChoreLeaderboard,
   getChores,
   setChoreDone,
   updateChore,
@@ -15,6 +16,7 @@ import {
 
 export const choresKeys = {
   list: (familyId: string) => ["chores", familyId] as const,
+  leaderboard: (familyId: string) => ["chore-leaderboard", familyId] as const,
 };
 
 export function useChores(familyId: string) {
@@ -23,6 +25,15 @@ export function useChores(familyId: string) {
     queryFn: () => getChores(familyId),
   });
   useRealtimeTable("chores", familyId, choresKeys.list(familyId));
+  return query;
+}
+
+export function useChoreLeaderboard(familyId: string) {
+  const query = useQuery({
+    queryKey: choresKeys.leaderboard(familyId),
+    queryFn: () => getChoreLeaderboard(familyId),
+  });
+  useRealtimeTable("activity_log", familyId, choresKeys.leaderboard(familyId));
   return query;
 }
 
