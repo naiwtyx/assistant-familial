@@ -10,6 +10,7 @@ import {
   getSuggestions,
   setSuggestionDone,
   toggleSuggestionVote,
+  updateSuggestion,
 } from "../services/ideas.service";
 
 export const ideasKeys = {
@@ -51,6 +52,14 @@ export function useDeleteSuggestion(familyId: string) {
   const invalidate = useInvalidate(familyId);
   return useMutation({
     mutationFn: (id: string) => deleteSuggestion(id),
+    onSettled: invalidate,
+  });
+}
+
+export function useUpdateSuggestion(familyId: string) {
+  const invalidate = useInvalidate(familyId);
+  return useMutation({
+    mutationFn: ({ id, content }: { id: string; content: string }) => updateSuggestion(id, content),
     onSettled: invalidate,
   });
 }

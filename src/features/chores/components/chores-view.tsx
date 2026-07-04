@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, Plus, Repeat, Trash2, Trophy, User } from "lucide-react";
+import { CheckSquare, Pencil, Plus, Repeat, Trash2, Trophy, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -15,8 +15,10 @@ import { isAuthorized } from "@/features/family/lib/roles";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 
+import { AssigneePicker } from "./assignee-picker";
+import { ChoreEditDialog } from "./chore-edit-dialog";
 import { useAddChore, useChores, useDeleteChore, useSetChoreDone } from "../hooks/use-chores";
-import type { ChoreRecurrence, ChoreWithAssignee } from "../services/chores.service";
+import type { ChoreRecurrence, ChoreWithAssignees } from "../services/chores.service";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const POINTS_OPTIONS = [1, 2, 3, 5, 10];
@@ -33,22 +35,24 @@ function startOfWeek(): Date {
   return date;
 }
 
-/** Classement des points gagnés cette semaine (tâches faites). */
+/** Classement des points gagnés cette semaine (crédités à chaque destinataire). */
 function computeLeaderboard(
-  chores: ChoreWithAssignee[] | undefined,
+  chores: ChoreWithAssignees[] | undefined,
 ): { name: string; points: number }[] {
   if (!chores) return [];
   const weekStart = startOfWeek().getTime();
   const byAssignee = new Map<string, { name: string; points: number }>();
   for (const chore of chores) {
-    if (!chore.done || !chore.done_at || !chore.assigned_to) continue;
+    if (!chore.done || !chore.done_at) continue;
     if (new Date(chore.done_at).getTime() < weekStart) continue;
-    const entry = byAssignee.get(chore.assigned_to) ?? {
-      name: chore.assigneeName ?? "Membre",
-      points: 0,
-    };
-    entry.points += chore.points;
-    byAssignee.set(chore.assigned_to, entry);
+    chore.assignee_ids.forEach((id, index) => {
+      const entry = byAssignee.get(id) ?? {
+        name: chore.assigneeNames[index] ?? "Membre",
+        points: 0,
+      };
+      entry.points += chore.points;
+      byAssignee.set(id, entry);
+    });
   }
   return [...byAssignee.values()].sort((a, b) => b.points - a.points);
 }
@@ -64,15 +68,20 @@ export function ChoresView() {
   const removeChore = useDeleteChore(family.id);
 
   const [title, setTitle] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
+  const [assignees, setAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [points, setPoints] = useState(1);
   const [recurrence, setRecurrence] = useState<"" | ChoreRecurrence>("");
+  const [editing, setEditing] = useState<ChoreWithAssignees | null>(null);
 
   const leaderboard = computeLeaderboard(chores);
 
   function onError(error: unknown) {
     toast.error(getErrorMessage(error));
+  }
+
+  function toggleAssignee(id: string) {
+    setAssignees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   function submit(event: React.FormEvent) {
@@ -82,7 +91,7 @@ export function ChoresView() {
     addChore.mutate(
       {
         title: trimmed,
-        assignedTo: assignedTo || null,
+        assigneeIds: assignees,
         dueDate: dueDate || null,
         points,
         recurrence: recurrence || null,
@@ -91,7 +100,7 @@ export function ChoresView() {
         onError,
         onSuccess: () => {
           setTitle("");
-          setAssignedTo("");
+          setAssignees([]);
           setDueDate("");
           setPoints(1);
           setRecurrence("");
@@ -130,7 +139,7 @@ export function ChoresView() {
         </div>
       ) : null}
 
-      <form onSubmit={submit} className="flex flex-col gap-2">
+      <form onSubmit={submit} className="flex flex-col gap-2 rounded-xl border p-3">
         <Input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -138,42 +147,36 @@ export function ChoresView() {
           maxLength={120}
           aria-label="Intitulé de la tâche"
         />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-muted-foreground flex items-center gap-1 text-xs">
+            <Users className="size-3" />
+            Pour qui ? (plusieurs possibles)
+          </span>
+          <AssigneePicker members={members} selected={assignees} onToggle={toggleAssignee} />
+        </div>
         <div className="flex gap-2">
-          <NativeSelect
-            value={assignedTo}
-            onChange={(event) => setAssignedTo(event.target.value)}
-            aria-label="Assigner à"
-            className="flex-1"
-          >
-            <option value="">Pour qui ? (optionnel)</option>
-            {members?.map((member) => (
-              <option key={member.user_id} value={member.user_id}>
-                {member.profile?.display_name ?? "Membre"}
-              </option>
-            ))}
-          </NativeSelect>
           <Input
             type="date"
             value={dueDate}
             min={TODAY}
             onChange={(event) => setDueDate(event.target.value)}
             aria-label="Échéance"
-            className="w-36"
+            className="flex-1"
           />
-        </div>
-        <div className="flex gap-2">
           <NativeSelect
             value={points}
             onChange={(event) => setPoints(Number(event.target.value))}
             aria-label="Points"
-            className="flex-1"
+            className="w-24"
           >
             {POINTS_OPTIONS.map((value) => (
               <option key={value} value={value}>
-                {value} point{value > 1 ? "s" : ""}
+                {value} pt{value > 1 ? "s" : ""}
               </option>
             ))}
           </NativeSelect>
+        </div>
+        <div className="flex gap-2">
           <NativeSelect
             value={recurrence}
             onChange={(event) => setRecurrence(event.target.value as "" | ChoreRecurrence)}
@@ -202,6 +205,11 @@ export function ChoresView() {
         <ul className="flex flex-col gap-2">
           {chores?.map((chore) => {
             const overdue = !chore.done && chore.due_date != null && chore.due_date < TODAY;
+            const canToggle =
+              canModerate ||
+              chore.assignee_ids.length === 0 ||
+              chore.assignee_ids.includes(userId);
+            const canEdit = canModerate || chore.created_by === userId;
             return (
               <li
                 key={chore.id}
@@ -212,6 +220,7 @@ export function ChoresView() {
               >
                 <Checkbox
                   checked={chore.done}
+                  disabled={!canToggle}
                   onCheckedChange={(checked) =>
                     setDone.mutate({ id: chore.id, done: checked === true }, { onError })
                   }
@@ -224,10 +233,10 @@ export function ChoresView() {
                     {chore.title}
                   </p>
                   <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                    {chore.assigneeName ? (
+                    {chore.assigneeNames.length > 0 ? (
                       <span className="flex items-center gap-1">
-                        <User className="size-3" />
-                        {chore.assigneeName}
+                        <Users className="size-3" />
+                        {chore.assigneeNames.join(", ")}
                       </span>
                     ) : null}
                     <span>
@@ -248,7 +257,19 @@ export function ChoresView() {
                   </div>
                 </div>
 
-                {canModerate || chore.created_by === userId ? (
+                {canEdit ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-foreground size-7 shrink-0"
+                    onClick={() => setEditing(chore)}
+                    aria-label="Modifier la tâche"
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                ) : null}
+
+                {canEdit ? (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -264,6 +285,17 @@ export function ChoresView() {
           })}
         </ul>
       )}
+
+      {editing ? (
+        <ChoreEditDialog
+          familyId={family.id}
+          chore={editing}
+          open={editing !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

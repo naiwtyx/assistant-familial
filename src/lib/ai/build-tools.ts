@@ -458,7 +458,7 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
     getChores: async () => {
       const { data, error } = await supabase
         .from("chores")
-        .select("title,done,points,due_date,assigned_to")
+        .select("title,done,points,due_date,assignee_ids")
         .eq("family_id", familyId)
         .order("done")
         .order("created_at", { ascending: false });
@@ -471,7 +471,7 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
           done: chore.done,
           points: chore.points,
           dueDate: chore.due_date,
-          assignee: chore.assigned_to ? (nameById.get(chore.assigned_to) ?? null) : null,
+          assignees: chore.assignee_ids.map((id) => nameById.get(id) ?? "Membre"),
         })),
       );
     },
@@ -500,7 +500,7 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       const { error } = await supabase.from("chores").insert({
         family_id: familyId,
         title,
-        assigned_to: assignedTo,
+        assignee_ids: assignedTo ? [assignedTo] : [],
         due_date: dueDate,
         points,
         recurrence,

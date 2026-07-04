@@ -82,11 +82,13 @@ export type Database = {
           family_id: string;
           title: string;
           assigned_to: string | null;
+          assignee_ids: string[];
           due_date: string | null;
           done: boolean;
           done_at: string | null;
           points: number;
           recurrence: string | null;
+          spawned_next: boolean;
           created_by: string | null;
           created_at: string;
         };
@@ -95,11 +97,13 @@ export type Database = {
           family_id: string;
           title: string;
           assigned_to?: string | null;
+          assignee_ids?: string[];
           due_date?: string | null;
           done?: boolean;
           done_at?: string | null;
           points?: number;
           recurrence?: string | null;
+          spawned_next?: boolean;
           created_by?: string | null;
           created_at?: string;
         };
@@ -108,11 +112,13 @@ export type Database = {
           family_id?: string;
           title?: string;
           assigned_to?: string | null;
+          assignee_ids?: string[];
           due_date?: string | null;
           done?: boolean;
           done_at?: string | null;
           points?: number;
           recurrence?: string | null;
+          spawned_next?: boolean;
           created_by?: string | null;
           created_at?: string;
         };
@@ -626,6 +632,17 @@ export type Database = {
       set_family_budget: {
         Args: { p_family_id: string; p_budget: number | null };
         Returns: Database["public"]["Tables"]["families"]["Row"];
+      };
+      update_chore: {
+        Args: {
+          p_id: string;
+          p_title: string;
+          p_assignee_ids: string[];
+          p_due_date: string | null;
+          p_points: number;
+          p_recurrence: string | null;
+        };
+        Returns: Database["public"]["Tables"]["chores"]["Row"];
       };
       shares_family_with: {
         Args: { p_user_id: string };

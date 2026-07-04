@@ -100,6 +100,15 @@ export async function addSuggestion(familyId: string, content: string): Promise<
   if (error) throw error;
 }
 
+export async function updateSuggestion(id: string, content: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("suggestions")
+    .update({ content: content.trim() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function setSuggestionDone(id: string, done: boolean): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("suggestions").update({ done }).eq("id", id);

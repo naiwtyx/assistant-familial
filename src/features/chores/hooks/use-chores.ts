@@ -9,7 +9,8 @@ import {
   deleteChore,
   getChores,
   setChoreDone,
-  type AddChoreInput,
+  updateChore,
+  type ChoreInput,
 } from "../services/chores.service";
 
 export const choresKeys = {
@@ -33,7 +34,15 @@ function useInvalidate(familyId: string) {
 export function useAddChore(familyId: string) {
   const invalidate = useInvalidate(familyId);
   return useMutation({
-    mutationFn: (input: AddChoreInput) => addChore(input),
+    mutationFn: (input: ChoreInput) => addChore(input),
+    onSettled: invalidate,
+  });
+}
+
+export function useUpdateChore(familyId: string) {
+  const invalidate = useInvalidate(familyId);
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ChoreInput }) => updateChore(id, input),
     onSettled: invalidate,
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowBigUp, Check, Lightbulb, Send, Trash2 } from "lucide-react";
+import { ArrowBigUp, Check, Lightbulb, Pencil, Send, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -19,6 +19,7 @@ import {
   useSetSuggestionDone,
   useSuggestions,
   useToggleSuggestionVote,
+  useUpdateSuggestion,
 } from "../hooks/use-ideas";
 
 export function IdeasView() {
@@ -30,11 +31,26 @@ export function IdeasView() {
   const setDone = useSetSuggestionDone(family.id);
   const removeSuggestion = useDeleteSuggestion(family.id);
   const toggleVote = useToggleSuggestionVote(family.id);
+  const updateSuggestion = useUpdateSuggestion(family.id);
 
   const [content, setContent] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   function onError(error: unknown) {
     toast.error(getErrorMessage(error));
+  }
+
+  function saveEdit(id: string) {
+    const trimmed = editValue.trim();
+    if (!trimmed) return;
+    updateSuggestion.mutate(
+      { id, content: trimmed },
+      {
+        onError,
+        onSuccess: () => setEditingId(null),
+      },
+    );
   }
 
   function submit(event: React.FormEvent) {
@@ -100,36 +116,89 @@ export function IdeasView() {
                 <span className="mt-0.5 size-4" />
               )}
 
-              <div className="min-w-0 flex-1">
-                <p className={cn("text-sm break-words", idea.done && "line-through")}>{idea.content}</p>
-                <p className="text-muted-foreground text-xs">{idea.authorName ?? "Quelqu'un"}</p>
-              </div>
+              {editingId === idea.id ? (
+                <div className="flex min-w-0 flex-1 items-center gap-1">
+                  <Input
+                    value={editValue}
+                    onChange={(event) => setEditValue(event.target.value)}
+                    maxLength={500}
+                    aria-label="Modifier l'idée"
+                    className="flex-1"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0"
+                    disabled={!editValue.trim() || updateSuggestion.isPending}
+                    onClick={() => saveEdit(idea.id)}
+                    aria-label="Enregistrer"
+                  >
+                    <Check className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground size-7 shrink-0"
+                    onClick={() => setEditingId(null)}
+                    aria-label="Annuler"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-sm break-words", idea.done && "line-through")}>
+                      {idea.content}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {idea.authorName ?? "Quelqu'un"}
+                    </p>
+                  </div>
 
-              <Button
-                variant={idea.hasVoted ? "default" : "outline"}
-                size="sm"
-                className="h-auto shrink-0 flex-col gap-0 px-2 py-1"
-                disabled={toggleVote.isPending}
-                onClick={() =>
-                  toggleVote.mutate({ id: idea.id, hasVoted: idea.hasVoted }, { onError })
-                }
-                aria-label={idea.hasVoted ? "Retirer mon vote" : "Voter pour cette idée"}
-              >
-                <ArrowBigUp className="size-4" />
-                <span className="text-xs tabular-nums">{idea.voteCount}</span>
-              </Button>
+                  <Button
+                    variant={idea.hasVoted ? "default" : "outline"}
+                    size="sm"
+                    className="h-auto shrink-0 flex-col gap-0 px-2 py-1"
+                    disabled={toggleVote.isPending}
+                    onClick={() =>
+                      toggleVote.mutate({ id: idea.id, hasVoted: idea.hasVoted }, { onError })
+                    }
+                    aria-label={idea.hasVoted ? "Retirer mon vote" : "Voter pour cette idée"}
+                  >
+                    <ArrowBigUp className="size-4" />
+                    <span className="text-xs tabular-nums">{idea.voteCount}</span>
+                  </Button>
 
-              {canModerate || idea.created_by === userId ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive size-7 shrink-0"
-                  onClick={() => removeSuggestion.mutate(idea.id, { onError })}
-                  aria-label="Supprimer l'idée"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              ) : null}
+                  {canModerate || idea.created_by === userId ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-foreground size-7 shrink-0"
+                      onClick={() => {
+                        setEditingId(idea.id);
+                        setEditValue(idea.content);
+                      }}
+                      aria-label="Modifier l'idée"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                  ) : null}
+
+                  {canModerate || idea.created_by === userId ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive size-7 shrink-0"
+                      onClick={() => removeSuggestion.mutate(idea.id, { onError })}
+                      aria-label="Supprimer l'idée"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  ) : null}
+                </>
+              )}
             </li>
           ))}
         </ul>

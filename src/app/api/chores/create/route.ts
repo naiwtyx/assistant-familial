@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 const bodySchema = z.object({
   title: z.string().trim().min(1).max(120),
-  assignedTo: z.string().uuid().nullable().optional(),
+  assigneeIds: z.array(z.string().uuid()).optional(),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -42,12 +42,12 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
-  const { title, assignedTo, dueDate, points, recurrence } = parsed.data;
+  const { title, assigneeIds = [], dueDate, points, recurrence } = parsed.data;
 
   const { error } = await supabase.from("chores").insert({
     family_id: familyId,
+    assignee_ids: assigneeIds,
     title,
-    assigned_to: assignedTo ?? null,
     due_date: dueDate ?? null,
     points: points ?? 1,
     recurrence: recurrence ?? null,
@@ -57,8 +57,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 
-  // Notifie la personne assignée (si ce n'est pas soi-même).
-  if (assignedTo && assignedTo !== user.id && isPushConfigured()) {
+  // Notifie chaque personne assignée (sauf soi-même).
+  const targets = assigneeIds.filter((id) => id !== user.id);
+  if (targets.length > 0 && isPushConfigured()) {
     try {
       const { data: profile } = await supabase
         .from("profiles")
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
       const { data: subs } = await supabase
         .from("push_subscriptions")
         .select("endpoint,p256dh,auth")
-        .eq("user_id", assignedTo);
+        .in("user_id", targets);
       if (subs && subs.length > 0) {
         const stale = await sendPush(subs, {
           title: "Nouvelle tâche",
