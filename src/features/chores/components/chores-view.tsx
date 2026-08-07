@@ -200,12 +200,7 @@ export function ChoresView() {
                   onCheckedChange={(checked) =>
                     setDone.mutate(
                       { id: chore.id, done: checked === true },
-                      {
-                        onError,
-                        onSuccess: (next) => {
-                          if (next) toast.success(`Fait ! Prochaine fois le ${formatDue(next)}`);
-                        },
-                      },
+                      { onError },
                     )
                   }
                   aria-label="Marquer comme faite"

@@ -116,54 +116,23 @@ function startOfWeekISO(): string {
   return date.toISOString();
 }
 
-function nextDueDate(current: string | null, recurrence: ChoreRecurrence): string {
-  const base = current ? new Date(`${current}T00:00:00`) : new Date();
-  base.setHours(0, 0, 0, 0);
-  base.setDate(base.getDate() + (recurrence === "weekly" ? 7 : 1));
-  const year = base.getFullYear();
-  const month = String(base.getMonth() + 1).padStart(2, "0");
-  const day = String(base.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 /**
- * Coche/décoche une tâche.
- * - Tâche récurrente cochée : au lieu de créer un doublon, on fait AVANCER la
- *   même tâche à la prochaine échéance (elle reste unique dans la liste).
- * - Tâche ponctuelle : simple bascule fait / à faire.
- * Chaque « fait » est journalisé (points crédités à la personne qui l'a faite).
- * Retourne la nouvelle échéance si la tâche a été reportée, sinon null.
+ * Coche/décoche une tâche : simple bascule « fait / à faire ». Aucune
+ * duplication ni décalage de date. Chaque « fait » est journalisé (les points
+ * vont à la personne qui l'a faite → classement de la semaine).
  */
-export async function setChoreDone(id: string, done: boolean): Promise<string | null> {
+export async function setChoreDone(id: string, done: boolean): Promise<void> {
   const supabase = createClient();
-  const { data: chore, error: fetchError } = await supabase
-    .from("chores")
-    .select("*")
-    .eq("id", id)
-    .single();
-  if (fetchError) throw fetchError;
-
-  if (done && chore.recurrence) {
-    const recurrence = chore.recurrence as ChoreRecurrence;
-    const next = nextDueDate(chore.due_date, recurrence);
-    const { error } = await supabase
-      .from("chores")
-      .update({ due_date: next, done: false, done_at: null })
-      .eq("id", id);
-    if (error) throw error;
-    void logActivity(chore.family_id, "chore_done", { title: chore.title, points: chore.points });
-    return next;
-  }
-
-  const { error } = await supabase
+  const { data: chore, error } = await supabase
     .from("chores")
     .update({ done, done_at: done ? new Date().toISOString() : null })
-    .eq("id", id);
+    .eq("id", id)
+    .select("family_id,title,points")
+    .single();
   if (error) throw error;
   if (done) {
     void logActivity(chore.family_id, "chore_done", { title: chore.title, points: chore.points });
   }
-  return null;
 }
 
 export async function deleteChore(id: string): Promise<void> {
