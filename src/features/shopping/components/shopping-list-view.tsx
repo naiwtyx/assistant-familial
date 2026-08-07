@@ -132,7 +132,7 @@ export function ShoppingListView() {
             // Un seul rayon -> liste simple, sans en-tête inutile.
             if (groups.length <= 1) {
               return (
-                <ul className="divide-border divide-y">
+                <ul className="bg-card shadow-soft flex flex-col rounded-2xl p-1">
                   {toBuy.map((item) => (
                     <li key={item.id}>
                       <ShoppingItemRow item={item} familyId={family.id} />
@@ -148,7 +148,7 @@ export function ShoppingListView() {
                     <p className="text-muted-foreground mb-1 text-xs font-medium uppercase">
                       {categoryLabel(group.key)}
                     </p>
-                    <ul className="divide-border divide-y">
+                    <ul className="bg-card shadow-soft flex flex-col rounded-2xl p-1">
                       {group.items.map((item) => (
                         <li key={item.id}>
                           <ShoppingItemRow item={item} familyId={family.id} />
@@ -177,7 +177,7 @@ export function ShoppingListView() {
                   Ajouter à l&apos;inventaire
                 </Button>
               </div>
-              <ul className="divide-border divide-y opacity-70">
+              <ul className="bg-card shadow-soft flex flex-col rounded-2xl p-1 opacity-70">
                 {bought.map((item) => (
                   <li key={item.id}>
                     <ShoppingItemRow item={item} familyId={family.id} />

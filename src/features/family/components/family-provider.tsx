@@ -16,6 +16,7 @@ type FamilyContextValue = {
   role: FamilyRole;
   userId: string;
   email: string | null;
+  displayName: string | null;
   canUseAi: boolean;
 };
 

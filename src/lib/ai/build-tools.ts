@@ -3,6 +3,10 @@ import "server-only";
 import type Groq from "groq-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { aggregateReceiptItems, type CategoryTotal } from "@/features/budget/lib/aggregate";
+import { compareMonthlySpending, significantIncreases } from "@/features/budget/lib/budget-insights";
+import { getExpiryStatus } from "@/features/inventory/lib/expiry";
+import { normalizeName } from "@/lib/normalize";
 import type { Database } from "@/types/database.types";
 
 type Db = SupabaseClient<Database>;
@@ -160,6 +164,24 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "planWeek",
+      description:
+        "Planifie automatiquement les 14 repas (midi + soir) de 7 jours à partir d'une date, en utilisant les recettes existantes et en priorisant celles dont des ingrédients périment bientôt dans l'inventaire. Écrase les créneaux déjà planifiés sur la période. Nécessite au moins une recette (getRecipes/createRecipe).",
+      parameters: {
+        type: "object",
+        properties: {
+          startDate: {
+            type: "string",
+            description: "Date de début AAAA-MM-JJ (souvent aujourd'hui ou demain)",
+          },
+        },
+        required: ["startDate"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "getChores",
       description: "Liste les tâches/corvées de la famille (intitulé, assignée à, faite, points).",
       parameters: { type: "object", properties: {} },
@@ -185,6 +207,52 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
           },
         },
         required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "setChoreDone",
+      description:
+        "Marque une tâche/corvée comme faite ou à faire, retrouvée par son intitulé exact (vérifie avec getChores si besoin).",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Intitulé de la tâche" },
+          done: { type: "boolean", description: "true = faite, false = à refaire (true par défaut)" },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "deleteChore",
+      description: "Supprime une tâche/corvée par son intitulé exact.",
+      parameters: {
+        type: "object",
+        properties: { title: { type: "string", description: "Intitulé de la tâche à supprimer" } },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reassignChore",
+      description: "Réassigne une tâche/corvée existante à un autre membre par son prénom.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Intitulé de la tâche" },
+          assigneeName: {
+            type: "string",
+            description: "Prénom du nouveau membre assigné (vérifie avec getFamilyMembers)",
+          },
+        },
+        required: ["title", "assigneeName"],
       },
     },
   },
@@ -224,9 +292,63 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "deleteEvent",
+      description: "Supprime un événement de l'agenda par son titre et sa date.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Titre de l'événement" },
+          date: { type: "string", description: "Date AAAA-MM-JJ" },
+        },
+        required: ["title", "date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "updateEvent",
+      description:
+        "Modifie un événement existant (nouvelle date, heure ou note). Retrouvé par son titre et sa date actuelle.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Titre de l'événement à modifier" },
+          date: { type: "string", description: "Date actuelle de l'événement, AAAA-MM-JJ" },
+          newDate: { type: "string", description: "Nouvelle date AAAA-MM-JJ (optionnel)" },
+          newTime: { type: "string", description: "Nouvelle heure HH:MM (optionnel)" },
+          newNote: { type: "string", description: "Nouvelle note (optionnel)" },
+        },
+        required: ["title", "date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getIdeas",
+      description: "Liste les idées/suggestions de la famille (contenu, faite ou non).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "addIdea",
+      description: "Ajoute une idée/suggestion au tableau de la famille.",
+      parameters: {
+        type: "object",
+        properties: { content: { type: "string", description: "Contenu de l'idée" } },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "getMonthlySpending",
       description:
-        "Total des dépenses (tickets scannés) d'un mois, par catégorie. Réservé aux parents.",
+        "Total des dépenses (tickets scannés) d'un mois, par catégorie, avec comparaison au mois précédent et catégories en forte hausse. Réservé aux parents.",
       parameters: {
         type: "object",
         properties: {
@@ -450,6 +572,97 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       return `Repas retiré : ${data?.length ?? 0} créneau (${date}, ${slot}).`;
     },
 
+    planWeek: async (args) => {
+      const startDate = asString(args.startDate);
+      if (!ISO_DATE.test(startDate)) return "Date de début invalide (format attendu : AAAA-MM-JJ).";
+
+      const { data: recipes, error: recipesError } = await supabase
+        .from("recipes")
+        .select("id,name")
+        .eq("family_id", familyId)
+        .order("created_at", { ascending: false });
+      if (recipesError) throw recipesError;
+      if (!recipes || recipes.length === 0) {
+        return "Aucune recette disponible. Crée d'abord des recettes avec createRecipe.";
+      }
+
+      const { data: ingredients, error: ingredientsError } = await supabase
+        .from("recipe_ingredients")
+        .select("recipe_id,name")
+        .in(
+          "recipe_id",
+          recipes.map((recipe) => recipe.id),
+        );
+      if (ingredientsError) throw ingredientsError;
+
+      const { data: inventory, error: inventoryError } = await supabase
+        .from("inventory_items")
+        .select("name,expiry_date")
+        .eq("family_id", familyId);
+      if (inventoryError) throw inventoryError;
+
+      const expiringNames = new Set(
+        (inventory ?? [])
+          .filter((item) => {
+            const status = getExpiryStatus(item.expiry_date);
+            return status === "soon" || status === "expired";
+          })
+          .map((item) => normalizeName(item.name)),
+      );
+
+      const ingredientsByRecipe = new Map<string, string[]>();
+      for (const ingredient of ingredients ?? []) {
+        const list = ingredientsByRecipe.get(ingredient.recipe_id) ?? [];
+        list.push(ingredient.name);
+        ingredientsByRecipe.set(ingredient.recipe_id, list);
+      }
+
+      const scored = recipes
+        .map((recipe) => {
+          const names = ingredientsByRecipe.get(recipe.id) ?? [];
+          const score = names.filter((name) => expiringNames.has(normalizeName(name))).length;
+          return { ...recipe, score };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      const start = new Date(`${startDate}T00:00:00`);
+      const endDate = new Date(start);
+      endDate.setDate(start.getDate() + 6);
+      const endIso = endDate.toISOString().slice(0, 10);
+
+      const slots: { date: string; slot: "midi" | "soir" }[] = [];
+      for (let day = 0; day < 7; day += 1) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + day);
+        const iso = date.toISOString().slice(0, 10);
+        slots.push({ date: iso, slot: "midi" }, { date: iso, slot: "soir" });
+      }
+
+      const rows = slots.map((slot, index) => {
+        const recipe = scored[index % scored.length]!;
+        return {
+          family_id: familyId,
+          date: slot.date,
+          slot: slot.slot,
+          recipe_id: recipe.id,
+          created_by: userId,
+        };
+      });
+
+      const { error } = await supabase
+        .from("meal_plans")
+        .upsert(rows, { onConflict: "family_id,date,slot" });
+      if (error) throw error;
+
+      const prioritized = scored.filter((recipe) => recipe.score > 0).map((recipe) => recipe.name);
+      const summary = `Semaine planifiée du ${startDate} au ${endIso} (14 repas, ${scored.length} recette(s) utilisée(s) en rotation).`;
+      const priorityNote =
+        prioritized.length > 0
+          ? ` Priorité donnée aux recettes utilisant des produits qui périment bientôt : ${prioritized.join(", ")}.`
+          : "";
+      return summary + priorityNote;
+    },
+
     getFamilyMembers: async () => {
       const members = await familyProfiles(supabase, familyId);
       return JSON.stringify(members.map((member) => ({ name: member.name })));
@@ -510,6 +723,57 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       return `Tâche « ${title} » créée${assigneeName ? ` pour ${assigneeName}` : ""}.`;
     },
 
+    setChoreDone: async (args) => {
+      const title = asString(args.title);
+      if (!title) return "Intitulé de tâche manquant.";
+      const done = typeof args.done === "boolean" ? args.done : true;
+      const { data, error } = await supabase
+        .from("chores")
+        .update({ done, done_at: done ? new Date().toISOString() : null })
+        .eq("family_id", familyId)
+        .ilike("title", title)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) return `Aucune tâche « ${title} » trouvée.`;
+      return `${data.length} tâche(s) « ${title} » marquée(s) ${done ? "faite(s)" : "à faire"}.`;
+    },
+
+    deleteChore: async (args) => {
+      const title = asString(args.title);
+      if (!title) return "Intitulé de tâche manquant.";
+      const { data, error } = await supabase
+        .from("chores")
+        .delete()
+        .eq("family_id", familyId)
+        .ilike("title", title)
+        .select("id");
+      if (error) throw error;
+      return `Supprimé : ${data?.length ?? 0} tâche(s) « ${title} ».`;
+    },
+
+    reassignChore: async (args) => {
+      const title = asString(args.title);
+      const assigneeName = asString(args.assigneeName);
+      if (!title) return "Intitulé de tâche manquant.";
+      if (!assigneeName) return "Prénom du nouveau membre manquant.";
+      const members = await familyProfiles(supabase, familyId);
+      const match = members.find(
+        (member) => member.name.trim().toLowerCase() === assigneeName.trim().toLowerCase(),
+      );
+      if (!match) {
+        return `Aucun membre nommé « ${assigneeName} ». Membres : ${members.map((m) => m.name).join(", ")}.`;
+      }
+      const { data, error } = await supabase
+        .from("chores")
+        .update({ assignee_ids: [match.id] })
+        .eq("family_id", familyId)
+        .ilike("title", title)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) return `Aucune tâche « ${title} » trouvée.`;
+      return `Tâche « ${title} » réassignée à ${assigneeName}.`;
+    },
+
     getEvents: async () => {
       const today = new Date().toISOString().slice(0, 10);
       const { data, error } = await supabase
@@ -542,37 +806,121 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       return `Événement « ${title} » ajouté à l'agenda le ${date}${time ? ` à ${time}` : ""}.`;
     },
 
+    deleteEvent: async (args) => {
+      const title = asString(args.title);
+      const date = asString(args.date);
+      if (!title) return "Titre d'événement manquant.";
+      if (!ISO_DATE.test(date)) return "Date invalide (format attendu : AAAA-MM-JJ).";
+      const { data, error } = await supabase
+        .from("events")
+        .delete()
+        .eq("family_id", familyId)
+        .eq("event_date", date)
+        .ilike("title", title)
+        .select("id");
+      if (error) throw error;
+      return `Supprimé : ${data?.length ?? 0} événement(s) « ${title} » le ${date}.`;
+    },
+
+    updateEvent: async (args) => {
+      const title = asString(args.title);
+      const date = asString(args.date);
+      if (!title) return "Titre d'événement manquant.";
+      if (!ISO_DATE.test(date)) return "Date invalide (format attendu : AAAA-MM-JJ).";
+
+      const patch: { event_date?: string; event_time?: string; note?: string } = {};
+      if (typeof args.newDate === "string" && ISO_DATE.test(args.newDate)) patch.event_date = args.newDate;
+      if (typeof args.newTime === "string" && /^\d{2}:\d{2}/.test(args.newTime)) patch.event_time = args.newTime;
+      if (typeof args.newNote === "string") patch.note = args.newNote;
+      if (Object.keys(patch).length === 0) {
+        return "Rien à modifier : indique newDate, newTime ou newNote.";
+      }
+
+      const { data, error } = await supabase
+        .from("events")
+        .update(patch)
+        .eq("family_id", familyId)
+        .eq("event_date", date)
+        .ilike("title", title)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) return `Aucun événement « ${title} » le ${date}.`;
+      return `Événement « ${title} » mis à jour.`;
+    },
+
+    getIdeas: async () => {
+      const { data, error } = await supabase
+        .from("suggestions")
+        .select("content,done")
+        .eq("family_id", familyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return JSON.stringify(data);
+    },
+
+    addIdea: async (args) => {
+      const content = asString(args.content).trim();
+      if (!content) return "Contenu de l'idée manquant.";
+      const { error } = await supabase
+        .from("suggestions")
+        .insert({ family_id: familyId, content, created_by: userId });
+      if (error) throw error;
+      return `Idée ajoutée : « ${content} ».`;
+    },
+
     getMonthlySpending: async (args) => {
       const now = new Date();
       const year = Math.round(asNumber(args.year, now.getFullYear()));
-      const month = Math.round(asNumber(args.month, now.getMonth() + 1));
-      const start = `${year}-${String(month).padStart(2, "0")}-01`;
-      const endDate = new Date(year, month, 1);
-      const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-01`;
+      const month = Math.round(asNumber(args.month, now.getMonth() + 1)); // 1-12
 
-      const { data, error } = await supabase
-        .from("receipt_items")
-        .select("category,price")
-        .eq("family_id", familyId)
-        .gte("purchased_at", start)
-        .lt("purchased_at", end);
-      if (error) throw error;
+      const current = await fetchMonthlyTotals(supabase, familyId, year, month - 1);
+      const previousDate = new Date(year, month - 2, 1);
+      const previous = await fetchMonthlyTotals(
+        supabase,
+        familyId,
+        previousDate.getFullYear(),
+        previousDate.getMonth(),
+      );
+      const comparison = compareMonthlySpending(current, previous);
 
-      let total = 0;
-      const byCategory = new Map<string, number>();
-      for (const item of data ?? []) {
-        const price = Number(item.price) || 0;
-        total += price;
-        const category = item.category ?? "other";
-        byCategory.set(category, (byCategory.get(category) ?? 0) + price);
-      }
       return JSON.stringify({
         month: `${year}-${String(month).padStart(2, "0")}`,
-        total: Number(total.toFixed(2)),
-        byCategory: Object.fromEntries(byCategory),
+        total: Number(comparison.total.toFixed(2)),
+        byCategory: Object.fromEntries(comparison.categories.map((row) => [row.category, row.amount])),
+        previousMonthTotal: Number(comparison.previousTotal.toFixed(2)),
+        changePercentVsPreviousMonth:
+          comparison.changePercent != null ? Math.round(comparison.changePercent) : null,
+        categoriesInSignificantIncrease: significantIncreases(comparison).map((row) => ({
+          category: row.category,
+          amount: row.amount,
+          previousAmount: row.previousAmount,
+          changePercent: Math.round(row.changePercent ?? 0),
+        })),
       });
     },
   };
+}
+
+/** Total + répartition par catégorie pour un mois (`month` 0-indexé). */
+async function fetchMonthlyTotals(
+  supabase: Db,
+  familyId: string,
+  year: number,
+  month: number,
+): Promise<{ total: number; byCategory: CategoryTotal[] }> {
+  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const endDate = new Date(year, month + 1, 1);
+  const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-01`;
+
+  const { data, error } = await supabase
+    .from("receipt_items")
+    .select("category,price")
+    .eq("family_id", familyId)
+    .gte("purchased_at", start)
+    .lt("purchased_at", end);
+  if (error) throw error;
+
+  return aggregateReceiptItems(data ?? []);
 }
 
 /** Prénoms + identifiants des membres de la famille (pour l'IA). */

@@ -58,7 +58,13 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
   }
 
   return (
-    <div className="flex items-center gap-3 py-2">
+    <div
+      className={cn(
+        "group/row flex items-center gap-3 rounded-xl px-2 py-2.5 transition-colors",
+        "hover:bg-accent/40",
+        item.is_checked && "opacity-70",
+      )}
+    >
       <Checkbox
         checked={item.is_checked}
         onCheckedChange={(checked) =>
@@ -66,6 +72,7 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
         }
         disabled={isPendingItem}
         aria-label={item.is_checked ? "Marquer comme non acheté" : "Marquer comme acheté"}
+        className="size-5 transition-transform active:scale-90"
       />
 
       {editing ? (
@@ -81,7 +88,7 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
               setEditing(false);
             }
           }}
-          className="h-8 flex-1"
+          className="h-9 flex-1"
           aria-label="Modifier le nom"
         />
       ) : (
@@ -89,30 +96,30 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
           type="button"
           onClick={() => !isPendingItem && setEditing(true)}
           className={cn(
-            "flex-1 truncate text-left text-sm",
-            item.is_checked && "text-muted-foreground line-through",
+            "flex-1 truncate text-left text-[15px] transition-all",
+            item.is_checked && "text-muted-foreground line-through decoration-1",
           )}
         >
           {item.name}
         </button>
       )}
 
-      <div className="flex items-center gap-0.5">
+      <div className="bg-muted/60 flex items-center rounded-full p-0.5">
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
+          className="size-7 rounded-full"
           onClick={() => changeQuantity(-1)}
           disabled={isPendingItem || item.quantity <= 1}
           aria-label="Diminuer la quantité"
         >
           <Minus className="size-3.5" />
         </Button>
-        <span className="w-6 text-center text-sm tabular-nums">{item.quantity}</span>
+        <span className="w-6 text-center text-sm font-medium tabular-nums">{item.quantity}</span>
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
+          className="size-7 rounded-full"
           onClick={() => changeQuantity(1)}
           disabled={isPendingItem}
           aria-label="Augmenter la quantité"
@@ -124,7 +131,7 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
       <Button
         variant="ghost"
         size="icon"
-        className="text-muted-foreground hover:text-destructive size-7"
+        className="text-muted-foreground hover:text-destructive size-8 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         onClick={() => remove.mutate(item.id, { onError })}
         disabled={isPendingItem}
         aria-label="Supprimer l'article"

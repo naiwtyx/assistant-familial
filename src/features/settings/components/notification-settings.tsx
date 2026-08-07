@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { registerServiceWorker } from "@/lib/register-service-worker";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -43,9 +44,8 @@ export function NotificationSettings() {
       return;
     }
 
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((registration) => registration.pushManager.getSubscription())
+    registerServiceWorker()
+      .then((registration) => registration?.pushManager.getSubscription() ?? null)
       .then(async (subscription) => {
         if (subscription) {
           // Auto-réparation : réenregistre l'abonnement côté serveur au cas où

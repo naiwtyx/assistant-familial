@@ -6,10 +6,10 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ASK_BAR_STORAGE_KEY } from "@/features/assistant/components/ask-bar";
+import { type ChatMessage, sendAssistantMessage } from "@/features/assistant/services/assistant.service";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { cn } from "@/lib/utils";
-
-type ChatMessage = { role: "user" | "assistant"; content: string };
 
 const SUGGESTIONS = [
   "Qu'est-ce qu'il me manque pour des pâtes carbonara ?",
@@ -27,6 +27,16 @@ export function AssistantView() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Ramasse une question posée depuis la barre "Demandez…" (dashboard, etc.)
+  // et l'injecte dans le champ pour un envoi en 1 tap.
+  useEffect(() => {
+    const prefill = window.sessionStorage.getItem(ASK_BAR_STORAGE_KEY);
+    if (prefill) {
+      window.sessionStorage.removeItem(ASK_BAR_STORAGE_KEY);
+      setInput(prefill);
+    }
+  }, []);
 
   if (!canUseAi) {
     return (
@@ -49,18 +59,8 @@ export function AssistantView() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
-      });
-      const data = (await response.json()) as { text?: string; error?: string };
-
-      if (!response.ok || data.error) {
-        throw new Error(data.error ?? "L'assistant n'a pas pu répondre.");
-      }
-
-      setMessages((prev) => [...prev, { role: "assistant", content: data.text ?? "" }]);
+      const text = await sendAssistantMessage(nextMessages);
+      setMessages((prev) => [...prev, { role: "assistant", content: text }]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Une erreur est survenue.");
       // On retire le message utilisateur resté sans réponse.

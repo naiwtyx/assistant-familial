@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getMonthlyBudget,
+  getMonthlyComparison,
   saveReceipt,
   setFamilyBudget,
   type SaveReceiptInput,
@@ -13,6 +14,8 @@ export const budgetKeys = {
   all: (familyId: string) => ["budget", familyId] as const,
   month: (familyId: string, year: number, month: number) =>
     ["budget", familyId, year, month] as const,
+  comparison: (familyId: string, year: number, month: number) =>
+    ["budget", familyId, year, month, "comparison"] as const,
 };
 
 export function useSaveReceipt(familyId: string) {
@@ -29,6 +32,13 @@ export function useMonthlyBudget(familyId: string, year: number, month: number) 
   return useQuery({
     queryKey: budgetKeys.month(familyId, year, month),
     queryFn: () => getMonthlyBudget(familyId, year, month),
+  });
+}
+
+export function useMonthlyComparison(familyId: string, year: number, month: number) {
+  return useQuery({
+    queryKey: budgetKeys.comparison(familyId, year, month),
+    queryFn: () => getMonthlyComparison(familyId, year, month),
   });
 }
 

@@ -3,6 +3,8 @@
 import { WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { registerServiceWorker } from "@/lib/register-service-worker";
+
 /**
  * Enregistre le service worker (cache hors ligne + notifications) au chargement
  * de l'app, et affiche un bandeau quand la connexion est perdue.
@@ -11,11 +13,7 @@ export function OfflineSupport() {
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        // Enregistrement best-effort : sans effet si indisponible.
-      });
-    }
+    void registerServiceWorker();
 
     const update = () => setOffline(!navigator.onLine);
     update();

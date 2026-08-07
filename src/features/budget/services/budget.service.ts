@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/client";
 
+import { aggregateReceiptItems, type CategoryTotal } from "../lib/aggregate";
+import { compareMonthlySpending, type MonthlyComparison } from "../lib/budget-insights";
+
 export type ReceiptItemInput = {
   name: string;
   quantity: number;
@@ -38,7 +41,6 @@ export async function saveReceipt(input: SaveReceiptInput): Promise<void> {
   if (error) throw error;
 }
 
-export type CategoryTotal = { category: string; amount: number };
 export type MonthlyBudget = {
   total: number;
   byCategory: CategoryTotal[];
@@ -75,18 +77,43 @@ export async function getMonthlyBudget(
   if (itemsResult.error) throw itemsResult.error;
   if (receiptsResult.error) throw receiptsResult.error;
 
-  const totals = new Map<string, number>();
-  let total = 0;
-  for (const item of itemsResult.data) {
-    const price = Number(item.price) || 0;
-    total += price;
-    const category = item.category ?? "other";
-    totals.set(category, (totals.get(category) ?? 0) + price);
-  }
-
-  const byCategory = Array.from(totals, ([category, amount]) => ({ category, amount })).sort(
-    (a, b) => b.amount - a.amount,
-  );
+  const { total, byCategory } = aggregateReceiptItems(itemsResult.data);
 
   return { total, byCategory, receipts: receiptsResult.data };
+}
+
+/** Agrège juste total + répartition par catégorie, sans le détail des tickets. */
+async function getMonthlyTotals(
+  familyId: string,
+  year: number,
+  month: number,
+): Promise<{ total: number; byCategory: CategoryTotal[] }> {
+  const supabase = createClient();
+  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const endDate = new Date(year, month + 1, 1);
+  const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-01`;
+
+  const { data, error } = await supabase
+    .from("receipt_items")
+    .select("category,price")
+    .eq("family_id", familyId)
+    .gte("purchased_at", start)
+    .lt("purchased_at", end);
+  if (error) throw error;
+
+  return aggregateReceiptItems(data);
+}
+
+/** Compare les dépenses du mois donné (`month` 0-indexé) à celles du mois précédent. */
+export async function getMonthlyComparison(
+  familyId: string,
+  year: number,
+  month: number,
+): Promise<MonthlyComparison> {
+  const previousDate = new Date(year, month - 1, 1);
+  const [current, previous] = await Promise.all([
+    getMonthlyTotals(familyId, year, month),
+    getMonthlyTotals(familyId, previousDate.getFullYear(), previousDate.getMonth()),
+  ]);
+  return compareMonthlySpending(current, previous);
 }

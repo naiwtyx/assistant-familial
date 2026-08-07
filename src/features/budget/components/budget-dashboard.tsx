@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,7 +12,8 @@ import { useActiveFamily } from "@/features/family/components/family-provider";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 
-import { useMonthlyBudget, useSetFamilyBudget } from "../hooks/use-budget";
+import { useMonthlyBudget, useMonthlyComparison, useSetFamilyBudget } from "../hooks/use-budget";
+import { computeBudgetStatus } from "../lib/budget-status";
 
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const MONTHS = [
@@ -36,6 +37,7 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const { data, isLoading } = useMonthlyBudget(familyId, year, month);
+  const { data: comparison } = useMonthlyComparison(familyId, year, month);
 
   const setBudget = useSetFamilyBudget(familyId);
   const [limit, setLimit] = useState<number | null>(family.monthly_budget);
@@ -68,9 +70,8 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
   }
 
   const maxAmount = data?.byCategory[0]?.amount ?? 0;
-  const overBudget = limit != null && limit > 0 && data != null && data.total > limit;
-  const nearBudget =
-    limit != null && limit > 0 && data != null && !overBudget && data.total >= limit * 0.8;
+  const { overBudget, nearBudget } =
+    data != null ? computeBudgetStatus(data.total, limit) : { overBudget: false, nearBudget: false };
 
   return (
     <Card>
@@ -127,6 +128,22 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
               <p className="text-muted-foreground text-xs">
                 total du mois{limit != null && limit > 0 ? ` · plafond ${euro.format(limit)}` : ""}
               </p>
+              {comparison && comparison.changePercent != null ? (
+                <p
+                  className={cn(
+                    "mt-1 flex items-center justify-center gap-1 text-xs font-medium",
+                    comparison.changeAmount > 0 ? "text-destructive" : "text-emerald-600",
+                  )}
+                >
+                  {comparison.changeAmount > 0 ? (
+                    <TrendingUp className="size-3.5" />
+                  ) : (
+                    <TrendingDown className="size-3.5" />
+                  )}
+                  {comparison.changePercent > 0 ? "+" : ""}
+                  {Math.round(comparison.changePercent)}% vs mois précédent
+                </p>
+              ) : null}
             </div>
 
             {limit != null && limit > 0 ? (

@@ -30,12 +30,17 @@ export default async function WithFamilyLayout({ children }: { children: React.R
     redirect("/onboarding");
   }
 
-  const { data: membership } = await supabase
-    .from("family_members")
-    .select("role,can_use_ai,birth_date")
-    .eq("family_id", activeFamily.id)
-    .eq("user_id", user.id)
-    .single();
+  const [membershipResult, profileResult] = await Promise.all([
+    supabase
+      .from("family_members")
+      .select("role,can_use_ai,birth_date")
+      .eq("family_id", activeFamily.id)
+      .eq("user_id", user.id)
+      .single(),
+    supabase.from("profiles").select("display_name").eq("id", user.id).single(),
+  ]);
+  const membership = membershipResult.data;
+  const displayName = profileResult.data?.display_name ?? null;
 
   const role = membership?.role ?? "member";
   const canUseAi = canMemberUseAi({
@@ -52,6 +57,7 @@ export default async function WithFamilyLayout({ children }: { children: React.R
         role,
         userId: user.id,
         email: user.email ?? null,
+        displayName,
         canUseAi,
       }}
     >

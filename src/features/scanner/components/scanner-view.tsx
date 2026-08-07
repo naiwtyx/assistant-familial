@@ -13,6 +13,7 @@ import { PRODUCT_CATEGORIES } from "@/config/constants";
 import { useSaveReceipt } from "@/features/budget/hooks/use-budget";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 import { useAddScannedItems } from "@/features/inventory/hooks/use-inventory";
+import { analyzeReceipt } from "@/features/scanner/services/scanner.service";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 type ScanItem = {
@@ -95,22 +96,8 @@ export function ScannerView() {
     if (images.length === 0) return;
     setIsAnalyzing(true);
     try {
-      const response = await fetch("/api/scan-receipt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images }),
-      });
-      const data = (await response.json()) as {
-        store?: string | null;
-        date?: string | null;
-        total?: number | null;
-        items?: { name: string; quantity: number; price?: number; category?: string }[];
-        error?: string;
-      };
-      if (!response.ok || data.error) {
-        throw new Error(data.error ?? "Échec de l'analyse.");
-      }
-      const detected: ScanItem[] = (data.items ?? []).map((item) => ({
+      const analysis = await analyzeReceipt(images);
+      const detected: ScanItem[] = analysis.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
         price: item.price ?? 0,
@@ -121,7 +108,7 @@ export function ScannerView() {
         toast.info("Aucun produit détecté sur le ticket.");
       }
       setItems(detected);
-      setMeta({ store: data.store ?? null, date: data.date ?? null, total: data.total ?? null });
+      setMeta({ store: analysis.store, date: analysis.date, total: analysis.total });
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
