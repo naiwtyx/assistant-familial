@@ -4,13 +4,17 @@ import { CalendarClock, Plus, Repeat, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { ListSkeleton } from "@/components/shared/list-skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
+import { FeedSkeleton } from "@/components/shared/list-skeleton";
+import { PageHeader } from "@/components/shared/page-header";
+import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { isAuthorized } from "@/features/family/lib/roles";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { haptic } from "@/lib/haptics";
 import type { FamilyEvent } from "@/types/db";
 
 import { useAddEvent, useDeleteEvent, useEvents } from "../hooks/use-events";
@@ -80,17 +84,29 @@ export function EventsView() {
 
   const groups = events ? groupByDate(events) : [];
 
-  return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <CalendarClock className="text-primary size-5" />
-          Agenda
-        </h1>
-        <p className="text-muted-foreground text-sm">Les rendez-vous et activités de la famille.</p>
-      </header>
+  const suggestion = (() => {
+    if (!events || events.length === 0) return null;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const in7Days = new Date();
+    in7Days.setDate(in7Days.getDate() + 7);
+    const weekEnd = in7Days.toISOString().slice(0, 10);
+    const nextWeek = events.filter((event) => event.event_date <= weekEnd);
+    if (nextWeek.length === 0) return "Aucun événement cette semaine — la maison est libre.";
+    if (nextWeek.length >= 5) return `${nextWeek.length} événements cette semaine — semaine bien remplie.`;
+    const nextEvent = events.find((event) => event.event_date >= todayIso);
+    if (nextEvent && nextEvent.event_date === todayIso) {
+      return `« ${nextEvent.title} » ${nextEvent.event_time ? `à ${nextEvent.event_time.slice(0, 5)}` : "aujourd'hui"}.`;
+    }
+    return null;
+  })();
 
-      <form onSubmit={submit} className="flex flex-col gap-2 rounded-xl border p-3">
+  return (
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader title="Agenda" subtitle="Les rendez-vous et activités de la famille" />
+
+      <PageSuggestion text={suggestion} />
+
+      <form onSubmit={submit} className="motion-in-delay-1 bg-card shadow-soft flex flex-col gap-2.5 rounded-2xl p-3.5">
         <Input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -140,48 +156,53 @@ export function EventsView() {
       </form>
 
       {isLoading ? (
-        <ListSkeleton />
+        <FeedSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;agenda.</p>
       ) : groups.length === 0 ? (
-        <div className="text-muted-foreground py-10 text-center text-sm">
-          Aucun événement à venir.
-        </div>
+        <EmptyState
+          icon={CalendarClock}
+          title="Aucun événement à venir"
+          description="Ajoute un rendez-vous, une sortie ou une activité pour que toute la famille soit au courant."
+        />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="motion-in-delay-2 flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.date}>
-              <p className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+              <p className="text-muted-foreground mb-2 px-1 text-[11px] font-semibold tracking-[0.08em] uppercase">
                 {formatDateHeading(group.date)}
               </p>
-              <ul className="flex flex-col gap-2">
+              <ul className="bg-card shadow-soft flex flex-col rounded-2xl p-2">
                 {group.events.map((event) => (
-                  <li key={event.id} className="flex items-start gap-2 rounded-xl border p-3">
+                  <li key={event.id} className="group/row flex items-start gap-3 rounded-xl px-2 py-2.5">
                     {event.event_time ? (
-                      <span className="text-primary shrink-0 text-sm font-medium tabular-nums">
+                      <span className="text-primary bg-primary/10 shrink-0 rounded-lg px-2 py-1 text-[13px] font-semibold tabular-nums">
                         {event.event_time.slice(0, 5)}
                       </span>
                     ) : null}
                     <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 text-sm break-words">
+                      <p className="flex items-center gap-1.5 text-[15px] break-words">
                         {event.title}
                         {event.recurrence ? (
-                          <Repeat className="text-muted-foreground size-3 shrink-0" />
+                          <Repeat className="text-muted-foreground size-3 shrink-0" strokeWidth={1.75} />
                         ) : null}
                       </p>
                       {event.note ? (
-                        <p className="text-muted-foreground text-xs break-words">{event.note}</p>
+                        <p className="text-muted-foreground mt-0.5 text-xs break-words">{event.note}</p>
                       ) : null}
                     </div>
                     {canModerate || event.created_by === userId ? (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-muted-foreground hover:text-destructive size-7 shrink-0"
-                        onClick={() => removeEvent.mutate(event.id, { onError })}
+                        className="text-muted-foreground hover:text-destructive size-8 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
+                        onClick={() => {
+                          haptic("warning");
+                          removeEvent.mutate(event.id, { onError });
+                        }}
                         aria-label="Supprimer l'événement"
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-4" strokeWidth={1.75} />
                       </Button>
                     ) : null}
                   </li>

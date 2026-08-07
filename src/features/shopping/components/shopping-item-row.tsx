@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 import type { ShoppingItem } from "@/types/db";
 
@@ -67,9 +68,10 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
     >
       <Checkbox
         checked={item.is_checked}
-        onCheckedChange={(checked) =>
-          toggle.mutate({ id: item.id, isChecked: checked === true }, { onError })
-        }
+        onCheckedChange={(checked) => {
+          haptic(checked === true ? "success" : "light");
+          toggle.mutate({ id: item.id, isChecked: checked === true }, { onError });
+        }}
         disabled={isPendingItem}
         aria-label={item.is_checked ? "Marquer comme non acheté" : "Marquer comme acheté"}
         className="size-5 transition-transform active:scale-90"
@@ -132,11 +134,14 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
         variant="ghost"
         size="icon"
         className="text-muted-foreground hover:text-destructive size-8 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
-        onClick={() => remove.mutate(item.id, { onError })}
+        onClick={() => {
+          haptic("warning");
+          remove.mutate(item.id, { onError });
+        }}
         disabled={isPendingItem}
         aria-label="Supprimer l'article"
       >
-        <Trash2 className="size-4" />
+        <Trash2 className="size-4" strokeWidth={1.75} />
       </Button>
     </div>
   );

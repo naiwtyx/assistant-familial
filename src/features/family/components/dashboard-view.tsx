@@ -16,16 +16,19 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { useMemo } from "react";
 
+import { Section } from "@/components/shared/section";
 import { AskBar } from "@/features/assistant/components/ask-bar";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import { useChores } from "@/features/chores/hooks/use-chores";
 import { useEvents } from "@/features/events/hooks/use-events";
-import { getExpiryStatus } from "@/features/inventory/lib/expiry";
 import { useInventory } from "@/features/inventory/hooks/use-inventory";
+import { getExpiryStatus } from "@/features/inventory/lib/expiry";
 import { useMealPlans } from "@/features/meals/hooks/use-meals";
 import { toISODate } from "@/features/meals/lib/week";
 import { useShoppingList } from "@/features/shopping/hooks/use-shopping-list";
+import { deterministicDigestMessage, type DigestFacts } from "@/lib/ai/digest-message";
 import { cn } from "@/lib/utils";
 
 import { useMyMembership } from "./family-provider";
@@ -34,8 +37,6 @@ import { InviteCard } from "./invite-card";
 
 type Shortcut = { href: string; label: string; icon: LucideIcon };
 const SHORTCUTS: Shortcut[] = [
-  { href: "/courses", label: "Courses", icon: ShoppingCart },
-  { href: "/inventaire", label: "Inventaire", icon: Package },
   { href: "/recettes", label: "Recettes", icon: BookOpen },
   { href: "/repas", label: "Repas", icon: CalendarDays },
   { href: "/taches", label: "Tâches", icon: CheckSquare },
@@ -56,12 +57,11 @@ function greeting(hour: number): string {
   return "Bonsoir";
 }
 
-/** Placeholder pour un bloc de valeur sur les cartes stat. */
 function StatValue({ value, unit }: { value: number | string; unit?: string }) {
   return (
-    <p className="font-heading text-2xl leading-none font-semibold tracking-tight tabular-nums">
+    <p className="font-heading text-[26px] leading-none font-semibold tracking-tight tabular-nums">
       {value}
-      {unit ? <span className="text-muted-foreground ml-1 text-base font-medium">{unit}</span> : null}
+      {unit ? <span className="text-muted-foreground ml-1 text-sm font-medium">{unit}</span> : null}
     </p>
   );
 }
@@ -79,8 +79,6 @@ export function DashboardView() {
   const salutation = greeting(now.getHours());
   const name = firstName(displayName);
 
-  // Toutes les requêtes utilisent React Query + realtime : elles se mettent
-  // à jour toutes seules quand la famille modifie quoi que ce soit.
   const { data: shopping } = useShoppingList(family.id);
   const { data: inventory } = useInventory(family.id);
   const { data: events } = useEvents(family.id);
@@ -96,27 +94,69 @@ export function DashboardView() {
   const nextMeal = isEvening ? eveningMeal : noonMeal;
   const nextMealLabel = isEvening ? "Ce soir" : "Ce midi";
 
-  const eventsToday = events?.filter((event) => event.event_date === today) ?? [];
-  const choresToday =
-    chores?.filter(
-      (chore) => !chore.done && chore.due_date != null && chore.due_date <= today,
-    ) ?? [];
+  const eventsToday = useMemo(
+    () => events?.filter((event) => event.event_date === today) ?? [],
+    [events, today],
+  );
+  const choresDue = useMemo(
+    () =>
+      chores?.filter(
+        (chore) => !chore.done && chore.due_date != null && chore.due_date <= today,
+      ) ?? [],
+    [chores, today],
+  );
+  const choresOverdue = useMemo(
+    () => choresDue.filter((chore) => chore.due_date != null && chore.due_date < today),
+    [choresDue, today],
+  );
 
-  const expiring = (inventory ?? []).filter((item) => {
-    const status = getExpiryStatus(item.expiry_date);
-    return status === "soon" || status === "expired";
-  });
-  const expiredCount = expiring.filter((item) => getExpiryStatus(item.expiry_date) === "expired").length;
+  const expiring = useMemo(
+    () =>
+      (inventory ?? []).filter((item) => {
+        const status = getExpiryStatus(item.expiry_date);
+        return status === "soon" || status === "expired";
+      }),
+    [inventory],
+  );
+  const expiredCount = expiring.filter(
+    (item) => getExpiryStatus(item.expiry_date) === "expired",
+  ).length;
+
+  // Suggestion IA client-side : réutilise la logique du digest cron mais sans
+  // appel réseau. Zéro coût, zéro latence, garantit qu'on affiche toujours
+  // quelque chose de pertinent (ou "Rien à signaler aujourd'hui.").
+  const suggestion = useMemo<string>(() => {
+    const facts: DigestFacts = {
+      choresOverdue: choresOverdue.map((chore) => chore.title),
+      choresDueToday: choresDue
+        .filter((chore) => chore.due_date === today)
+        .map((chore) => chore.title),
+      eventsToday: eventsToday.map((event) => ({
+        title: event.title,
+        time: event.event_time,
+      })),
+      budget: null,
+      expiringSoon: expiring
+        .filter((item) => getExpiryStatus(item.expiry_date) === "soon")
+        .map((item) => item.name),
+      expired: expiring
+        .filter((item) => getExpiryStatus(item.expiry_date) === "expired")
+        .map((item) => item.name),
+    };
+    return deterministicDigestMessage(facts);
+  }, [choresOverdue, choresDue, eventsToday, expiring, today]);
+
+  const suggestionIsIdle = suggestion === "Rien à signaler aujourd'hui.";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 p-5 pb-8">
-      {/* En-tête personnel : nomme l'utilisateur, situe la journée. Plus intime qu'un titre "Tableau de bord". */}
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-7 p-5 pb-8">
+      {/* 1. Bonjour — situer + personnaliser. Le prénom + l'emoji donnent le ton. */}
       <header className="motion-in flex items-start justify-between gap-4 pt-2">
         <div className="min-w-0">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          <p className="text-muted-foreground text-[11px] font-medium tracking-[0.1em] uppercase">
             {dateLabel}
           </p>
-          <h1 className="font-heading mt-0.5 truncate text-2xl leading-tight font-semibold tracking-tight">
+          <h1 className="font-heading mt-1 truncate text-[26px] leading-tight font-semibold tracking-tight">
             {salutation}
             {name ? `, ${name}` : ""} <span aria-hidden>👋</span>
           </h1>
@@ -128,15 +168,35 @@ export function DashboardView() {
         <SignOutButton />
       </header>
 
-      {/* Barre "Demandez…" en hero : positionne l'IA comme cœur de l'app, pas comme un onglet parmi d'autres. */}
-      <div className="motion-in-delay-1">
+      {/* 2. Suggestion IA — la première chose "intelligente" que voit l'utilisateur. */}
+      <Link
+        href="/assistant"
+        className="motion-in-delay-1 group bg-ai-gradient shadow-ai relative flex flex-col gap-2 overflow-hidden rounded-3xl p-5 transition-all active:scale-[0.98]"
+      >
+        <div className="flex items-center gap-2">
+          <Sparkles className="text-primary size-4" strokeWidth={2} aria-hidden />
+          <span className="text-primary text-[11px] font-semibold tracking-[0.1em] uppercase">
+            {suggestionIsIdle ? "Assistant" : "Aperçu du jour"}
+          </span>
+        </div>
+        <p className="text-[15px] leading-relaxed text-balance">
+          {suggestionIsIdle
+            ? "Tout est calme aujourd'hui. Ouvre l'assistant pour planifier, ajouter ou réorganiser en langage naturel."
+            : suggestion}
+        </p>
+        <span className="text-primary mt-1 inline-flex items-center gap-1 text-xs font-medium">
+          Ouvrir l&apos;assistant
+          <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </Link>
+
+      {/* 3. Demander directement -- barre "Ask" comme raccourci vers l'assistant. */}
+      <div className="motion-in-delay-2 -mt-3">
         <AskBar />
       </div>
 
-      {/* Section Aujourd'hui : ce qui compte MAINTENANT. Une carte = un signal clair. */}
-      <section className="motion-in-delay-2 flex flex-col gap-3">
-        <SectionTitle>Aujourd&apos;hui</SectionTitle>
-
+      {/* 4. Aujourd'hui — repas, événements, tâches. Une carte = un signal clair. */}
+      <Section title="Aujourd'hui" className="motion-in-delay-2">
         <div className="grid gap-3">
           <TodayCard
             href="/repas"
@@ -163,46 +223,38 @@ export function DashboardView() {
             />
           ) : null}
 
-          {choresToday.length > 0 ? (
+          {choresDue.length > 0 ? (
             <TodayCard
               href="/taches"
               icon={CheckSquare}
-              label={choresToday.length > 1 ? "Tâches à faire" : "Tâche à faire"}
+              label={choresDue.length > 1 ? "Tâches à faire" : "Tâche à faire"}
               value={
-                choresToday.length > 1
-                  ? `${choresToday.length} tâches`
-                  : (choresToday[0]?.title ?? "")
+                choresDue.length > 1
+                  ? `${choresDue.length} tâche${choresDue.length > 1 ? "s" : ""}`
+                  : (choresDue[0]?.title ?? "")
               }
               hint={
-                choresToday.some(
-                  (chore) => chore.due_date != null && chore.due_date < today,
-                )
-                  ? "Certaines sont en retard"
+                choresOverdue.length > 0
+                  ? `${choresOverdue.length} en retard`
                   : "Prévues aujourd'hui"
               }
-              tone={
-                choresToday.some(
-                  (chore) => chore.due_date != null && chore.due_date < today,
-                )
-                  ? "warn"
-                  : "default"
-              }
+              tone={choresOverdue.length > 0 ? "warn" : "default"}
             />
           ) : null}
         </div>
 
-        {/* Bloc "Attention" séparé quand des produits périment : signal élevé sans polluer la section principale. */}
+        {/* Bloc "à surveiller" — signal élevé uniquement si des produits périment. */}
         {expiring.length > 0 ? (
           <Link
             href="/inventaire"
             className={cn(
-              "group flex items-center gap-3 rounded-2xl border p-3.5 transition-all",
+              "group flex items-center gap-3 rounded-2xl border p-3.5 transition-all active:scale-[0.99]",
               "border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/10",
-              "dark:border-amber-400/25 dark:bg-amber-400/10 dark:hover:bg-amber-400/15",
+              "dark:border-amber-400/25 dark:bg-amber-400/8 dark:hover:bg-amber-400/12",
             )}
           >
             <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="size-4.5" />
+              <AlertTriangle className="size-[18px]" strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">
@@ -221,81 +273,53 @@ export function DashboardView() {
             <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </Link>
         ) : null}
+      </Section>
 
-        {/* Deux stat tiles compactes : chiffres qui rassurent, pas de graphe surchargé. */}
+      {/* 5. Courses & Inventaire — les 2 chiffres qui pilotent la maison. */}
+      <Section title="La maison en un coup d'œil" className="motion-in-delay-3">
         <div className="grid grid-cols-2 gap-3">
-          <Link
+          <StatTile
             href="/courses"
-            className="group bg-card shadow-soft flex flex-col gap-2 rounded-2xl p-4 transition-all hover:shadow-elevated active:scale-[0.98]"
-          >
-            <div className="flex items-center justify-between">
-              <ShoppingCart className="text-muted-foreground size-4" />
-              <ChevronRight className="text-muted-foreground/60 size-4 transition-transform group-hover:translate-x-0.5" />
-            </div>
-            <StatValue value={shoppingToBuy} unit={shoppingToBuy > 1 ? "articles" : "article"} />
-            <p className="text-muted-foreground text-xs">à acheter</p>
-          </Link>
-          <Link
+            icon={ShoppingCart}
+            value={shoppingToBuy}
+            unit={shoppingToBuy > 1 ? "articles" : "article"}
+            caption="à acheter"
+          />
+          <StatTile
             href="/inventaire"
-            className="group bg-card shadow-soft flex flex-col gap-2 rounded-2xl p-4 transition-all hover:shadow-elevated active:scale-[0.98]"
-          >
-            <div className="flex items-center justify-between">
-              <Package className="text-muted-foreground size-4" />
-              <ChevronRight className="text-muted-foreground/60 size-4 transition-transform group-hover:translate-x-0.5" />
-            </div>
-            <StatValue value={inventoryCount} unit={inventoryCount > 1 ? "produits" : "produit"} />
-            <p className="text-muted-foreground text-xs">en stock</p>
-          </Link>
+            icon={Package}
+            value={inventoryCount}
+            unit={inventoryCount > 1 ? "produits" : "produit"}
+            caption="en stock"
+          />
         </div>
-      </section>
+      </Section>
 
-      {/* Raccourcis compacts : accès rapide sans écraser la page. */}
-      <section className="motion-in-delay-3 flex flex-col gap-3">
-        <SectionTitle>Tout</SectionTitle>
-        <div className="grid grid-cols-4 gap-2">
+      {/* 6. Raccourcis — tout le reste, discret. */}
+      <Section title="Accès rapides" className="motion-in-delay-3">
+        <div className="grid grid-cols-3 gap-2">
           {SHORTCUTS.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
-              className="group bg-card hover:bg-accent/60 flex flex-col items-center gap-1.5 rounded-2xl p-3 shadow-soft transition-all active:scale-[0.97]"
+              className="group bg-card shadow-soft flex flex-col items-center gap-1.5 rounded-2xl p-3 transition-all active:scale-[0.97]"
             >
-              <Icon className="text-foreground/80 group-hover:text-primary size-5 transition-colors" />
+              <Icon
+                className="text-foreground/80 group-hover:text-primary size-[18px] transition-colors"
+                strokeWidth={1.75}
+              />
               <span className="text-[11px] font-medium">{label}</span>
             </Link>
           ))}
         </div>
-      </section>
+      </Section>
 
-      {/* Assistant en accès direct : deuxième signal, en cas où la barre du haut a été négligée. */}
-      <Link
-        href="/assistant"
-        className="motion-in-delay-4 group bg-ai-gradient shadow-ai flex items-center gap-3 rounded-2xl p-4 transition-all hover:shadow-elevated active:scale-[0.98]"
-      >
-        <div className="bg-primary/15 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
-          <Sparkles className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Assistant IA</p>
-          <p className="text-muted-foreground text-xs">
-            Planifie, ajoute, réorganise en langage naturel
-          </p>
-        </div>
-        <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
-      </Link>
-
-      <section className="motion-in-delay-4 flex flex-col gap-3">
+      {/* 7. Famille — membres + invitations, tout en bas. */}
+      <Section title="Famille" className="motion-in-delay-4">
         <FamilyMembersList familyId={family.id} />
         <InviteCard familyId={family.id} />
-      </section>
+      </Section>
     </main>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="text-muted-foreground px-1 text-[11px] font-semibold tracking-[0.08em] uppercase">
-      {children}
-    </h2>
   );
 }
 
@@ -325,23 +349,51 @@ function TodayCard({ href, icon: Icon, label, value, hint, muted, tone = "defaul
             : "bg-primary/10 text-primary",
         )}
       >
-        <Icon className="size-5" />
+        <Icon className="size-[18px]" strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+        <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
           {label}
         </p>
         <p
           className={cn(
-            "truncate text-sm font-medium",
+            "mt-0.5 truncate text-[15px] font-medium",
             muted && "text-muted-foreground font-normal",
           )}
         >
           {value}
         </p>
-        <p className="text-muted-foreground truncate text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-0.5 truncate text-xs">{hint}</p>
       </div>
       <ChevronRight className="text-muted-foreground/60 size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+    </Link>
+  );
+}
+
+function StatTile({
+  href,
+  icon: Icon,
+  value,
+  unit,
+  caption,
+}: {
+  href: string;
+  icon: LucideIcon;
+  value: number;
+  unit?: string;
+  caption: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group bg-card shadow-soft flex flex-col gap-3 rounded-2xl p-4 transition-all hover:shadow-elevated active:scale-[0.98]"
+    >
+      <div className="flex items-center justify-between">
+        <Icon className="text-muted-foreground size-[18px]" strokeWidth={1.75} />
+        <ChevronRight className="text-muted-foreground/60 size-4 transition-transform group-hover:translate-x-0.5" />
+      </div>
+      <StatValue value={value} unit={unit} />
+      <p className="text-muted-foreground text-xs">{caption}</p>
     </Link>
   );
 }

@@ -4,7 +4,10 @@ import { CheckSquare, Pencil, Plus, Repeat, Trash2, Trophy, Users } from "lucide
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/list-skeleton";
+import { PageHeader } from "@/components/shared/page-header";
+import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -13,6 +16,7 @@ import { useMyMembership } from "@/features/family/components/family-provider";
 import { useFamilyMembers } from "@/features/family/hooks/use-family";
 import { isAuthorized } from "@/features/family/lib/roles";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 
 import { AssigneePicker } from "./assignee-picker";
@@ -52,6 +56,24 @@ export function ChoresView() {
 
   const { data: leaderboard = [] } = useChoreLeaderboard(family.id);
 
+  const overdueCount =
+    chores?.filter((chore) => !chore.done && chore.due_date != null && chore.due_date < TODAY)
+      .length ?? 0;
+  const unassignedCount =
+    chores?.filter((chore) => !chore.done && chore.assignee_ids.length === 0).length ?? 0;
+  const suggestion = (() => {
+    if (overdueCount >= 2) {
+      return `${overdueCount} tâches en retard — c'est le moment de rattraper (ou de les réassigner).`;
+    }
+    if (unassignedCount >= 3) {
+      return `${unassignedCount} tâches sans personne assignée — répartis-les pour équilibrer la semaine.`;
+    }
+    if (leaderboard.length > 0 && leaderboard[0]!.points >= 10) {
+      return `${leaderboard[0]!.name} mène le classement avec ${leaderboard[0]!.points} points cette semaine.`;
+    }
+    return null;
+  })();
+
   function onError(error: unknown) {
     toast.error(getErrorMessage(error));
   }
@@ -86,19 +108,15 @@ export function ChoresView() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <CheckSquare className="text-primary size-5" />
-          Tâches
-        </h1>
-        <p className="text-muted-foreground text-sm">Répartissez les corvées de la famille.</p>
-      </header>
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader title="Tâches" subtitle="Répartissez les corvées de la famille" />
+
+      <PageSuggestion text={suggestion} />
 
       {leaderboard.length > 0 ? (
-        <div className="rounded-xl border bg-amber-500/5 p-3">
-          <p className="mb-2 flex items-center gap-2 text-sm font-medium">
-            <Trophy className="size-4 text-amber-500" />
+        <div className="motion-in-delay-1 bg-card shadow-soft rounded-2xl p-4">
+          <p className="mb-3 flex items-center gap-2 text-sm font-medium">
+            <Trophy className="size-4 text-amber-500" strokeWidth={1.75} />
             Classement de la semaine
           </p>
           <ul className="flex flex-col gap-1">
@@ -115,7 +133,7 @@ export function ChoresView() {
         </div>
       ) : null}
 
-      <form onSubmit={submit} className="flex flex-col gap-2 rounded-xl border p-3">
+      <form onSubmit={submit} className="motion-in-delay-2 bg-card shadow-soft flex flex-col gap-2.5 rounded-2xl p-3.5">
         <Input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -174,11 +192,13 @@ export function ChoresView() {
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger les tâches.</p>
       ) : chores && chores.length === 0 ? (
-        <div className="text-muted-foreground py-10 text-center text-sm">
-          Aucune tâche pour l&apos;instant.
-        </div>
+        <EmptyState
+          icon={CheckSquare}
+          title="Aucune tâche"
+          description="Répartissez les corvées de la maison. Chaque tâche faite rapporte des points au classement."
+        />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="motion-in-delay-3 bg-card shadow-soft flex flex-col rounded-2xl p-2">
           {chores?.map((chore) => {
             const overdue = !chore.done && chore.due_date != null && chore.due_date < TODAY;
             const canToggle =
@@ -190,21 +210,22 @@ export function ChoresView() {
               <li
                 key={chore.id}
                 className={cn(
-                  "flex items-start gap-2 rounded-xl border p-3",
+                  "group/row flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-accent/40",
                   chore.done && "opacity-60",
                 )}
               >
                 <Checkbox
                   checked={chore.done}
                   disabled={!canToggle}
-                  onCheckedChange={(checked) =>
+                  onCheckedChange={(checked) => {
+                    haptic(checked === true ? "success" : "light");
                     setDone.mutate(
                       { id: chore.id, done: checked === true },
                       { onError },
-                    )
-                  }
+                    );
+                  }}
                   aria-label="Marquer comme faite"
-                  className="mt-0.5"
+                  className="mt-1 size-5 transition-transform active:scale-90"
                 />
 
                 <div className="min-w-0 flex-1">
@@ -237,27 +258,29 @@ export function ChoresView() {
                 </div>
 
                 {canEdit ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-foreground size-7 shrink-0"
-                    onClick={() => setEditing(chore)}
-                    aria-label="Modifier la tâche"
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                ) : null}
-
-                {canEdit ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive size-7 shrink-0"
-                    onClick={() => removeChore.mutate(chore.id, { onError })}
-                    aria-label="Supprimer la tâche"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-foreground size-8"
+                      onClick={() => setEditing(chore)}
+                      aria-label="Modifier la tâche"
+                    >
+                      <Pencil className="size-4" strokeWidth={1.75} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive size-8"
+                      onClick={() => {
+                        haptic("warning");
+                        removeChore.mutate(chore.id, { onError });
+                      }}
+                      aria-label="Supprimer la tâche"
+                    >
+                      <Trash2 className="size-4" strokeWidth={1.75} />
+                    </Button>
+                  </div>
                 ) : null}
               </li>
             );

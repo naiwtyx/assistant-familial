@@ -4,7 +4,10 @@ import { AlertTriangle, Camera, Package, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { ListSkeleton } from "@/components/shared/list-skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
+import { FeedSkeleton } from "@/components/shared/list-skeleton";
+import { PageHeader } from "@/components/shared/page-header";
+import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 
@@ -35,33 +38,52 @@ export function InventoryView() {
       )
     : [];
 
+  const suggestion = (() => {
+    if (expiredCount >= 1) {
+      const first = items?.find((item) => getExpiryStatus(item.expiry_date) === "expired");
+      return `Retire ${first?.name ?? "les produits périmés"} de l'inventaire pour garder une vue à jour.`;
+    }
+    if (soonCount >= 1) {
+      const first = items?.find((item) => getExpiryStatus(item.expiry_date) === "soon");
+      return `Pense à utiliser ${first?.name ?? "les produits qui périment bientôt"} en priorité.`;
+    }
+    if ((items?.length ?? 0) >= 20) {
+      return "Inventaire bien fourni — planifie tes repas de la semaine pour l'écouler avant d'acheter neuf.";
+    }
+    return null;
+  })();
+
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Inventaire</h1>
-          <p className="text-muted-foreground text-sm">{family.name}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => router.push("/scanner")}
-            aria-label="Scanner un ticket"
-          >
-            <Camera className="size-4" />
-          </Button>
-          <Button size="sm" onClick={() => setAdding(true)}>
-            <Plus className="size-4" />
-            Ajouter
-          </Button>
-        </div>
-      </header>
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader
+        title="Inventaire"
+        subtitle={family.name}
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push("/scanner")}
+              aria-label="Scanner un ticket"
+            >
+              <Camera className="size-4" strokeWidth={1.75} />
+            </Button>
+            <Button size="sm" onClick={() => setAdding(true)}>
+              <Plus className="size-4" strokeWidth={1.75} />
+              Ajouter
+            </Button>
+          </>
+        }
+      />
+
+      <PageSuggestion text={suggestion} />
 
       {expiredCount > 0 || soonCount > 0 ? (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <div className="flex flex-col">
+        <div className="motion-in-delay-1 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/25 dark:bg-amber-400/8 dark:text-amber-300">
+          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15">
+            <AlertTriangle className="size-4" strokeWidth={1.75} />
+          </div>
+          <div className="flex flex-col gap-0.5">
             {expiredCount > 0 ? (
               <span>
                 <strong>{expiredCount}</strong> produit{expiredCount > 1 ? "s" : ""} périmé
@@ -78,20 +100,23 @@ export function InventoryView() {
       ) : null}
 
       {isLoading ? (
-        <ListSkeleton />
+        <FeedSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;inventaire.</p>
       ) : items && items.length === 0 ? (
-        <div className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">
-          <Package className="size-8 opacity-40" />
-          <p>
-            Ton inventaire est vide.
-            <br />
-            Ajoute ton premier produit.
-          </p>
-        </div>
+        <EmptyState
+          icon={Package}
+          title="Ton inventaire est vide"
+          description="Ajoute manuellement un produit, ou scanne un ticket de caisse pour tout importer d'un coup."
+          action={
+            <Button size="sm" onClick={() => setAdding(true)}>
+              <Plus className="size-4" strokeWidth={1.75} />
+              Ajouter un produit
+            </Button>
+          }
+        />
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="motion-in-delay-2 flex flex-col gap-2">
           {sortedItems.map((item) => (
             <InventoryItemCard key={item.id} item={item} familyId={family.id} />
           ))}

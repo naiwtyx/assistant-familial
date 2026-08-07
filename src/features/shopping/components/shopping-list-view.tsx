@@ -4,12 +4,16 @@ import { Bell, PackagePlus, Share2, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/shared/empty-state";
 import { ListSkeleton } from "@/components/shared/list-skeleton";
+import { PageHeader } from "@/components/shared/page-header";
+import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { categoryLabel } from "@/config/constants";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { isAuthorized } from "@/features/family/lib/roles";
-import { useAddCheckedItemsToInventory } from "@/features/inventory/hooks/use-inventory";
+import { useAddCheckedItemsToInventory, useInventory } from "@/features/inventory/hooks/use-inventory";
+import { getExpiryStatus } from "@/features/inventory/lib/expiry";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 import { useShoppingList } from "../hooks/use-shopping-list";
@@ -26,6 +30,22 @@ export function ShoppingListView() {
 
   const toBuy = items?.filter((item) => !item.is_checked) ?? [];
   const bought = items?.filter((item) => item.is_checked) ?? [];
+
+  const { data: inventory } = useInventory(family.id);
+  const expiringSoonCount =
+    inventory?.filter((item) => getExpiryStatus(item.expiry_date) === "soon").length ?? 0;
+  const suggestion = (() => {
+    if (toBuy.length >= 8) {
+      return `${toBuy.length} articles à acheter. Pense à faire les courses cette semaine.`;
+    }
+    if (expiringSoonCount >= 2) {
+      return `${expiringSoonCount} produits en stock périment bientôt — planifie des recettes pour les utiliser avant d'acheter neuf.`;
+    }
+    if (toBuy.length === 0 && bought.length > 0) {
+      return "Liste terminée ! Ajoute les articles à ton inventaire d'un tap.";
+    }
+    return null;
+  })();
 
   function handleAddToInventory() {
     addToInventory.mutate(bought, {
@@ -78,37 +98,39 @@ export function ShoppingListView() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Liste de courses</h1>
-          <p className="text-muted-foreground text-sm">{family.name}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {canRemind ? (
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader
+        title="Liste de courses"
+        subtitle={family.name}
+        actions={
+          <>
+            {canRemind ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRemind}
+                disabled={isReminding}
+                aria-label="Rappeler à la famille de compléter la liste"
+                title="Rappeler à la famille"
+              >
+                <Bell className="size-[18px]" strokeWidth={1.75} />
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleRemind}
-              disabled={isReminding}
-              aria-label="Rappeler à la famille de compléter la liste"
-              title="Rappeler à la famille"
+              onClick={handleShare}
+              disabled={toBuy.length === 0}
+              aria-label="Partager la liste"
+              title="Partager la liste"
             >
-              <Bell className="size-5" />
+              <Share2 className="size-[18px]" strokeWidth={1.75} />
             </Button>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleShare}
-            disabled={toBuy.length === 0}
-            aria-label="Partager la liste"
-            title="Partager la liste"
-          >
-            <Share2 className="size-5" />
-          </Button>
-        </div>
-      </header>
+          </>
+        }
+      />
+
+      <PageSuggestion text={suggestion} />
 
       <AddItemForm familyId={family.id} />
 
@@ -117,14 +139,11 @@ export function ShoppingListView() {
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger la liste.</p>
       ) : items && items.length === 0 ? (
-        <div className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm">
-          <ShoppingCart className="size-8 opacity-40" />
-          <p>
-            Aucun article pour l&apos;instant.
-            <br />
-            Ajoute ton premier article ci-dessus.
-          </p>
-        </div>
+        <EmptyState
+          icon={ShoppingCart}
+          title="Aucun article"
+          description="Ajoute ton premier article ci-dessus. Ou scanne un ticket de caisse pour tout importer d'un coup."
+        />
       ) : (
         <div className="flex flex-col gap-1">
           {(() => {

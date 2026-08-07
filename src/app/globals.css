@@ -102,29 +102,32 @@
 }
 
 .dark {
-  --background: oklch(0.155 0.008 265);
+  /* Fond légèrement bleuté-violacé (pas noir plat) : donne de la profondeur. */
+  --background: oklch(0.16 0.012 265);
   --foreground: oklch(0.97 0.005 265);
 
-  --card: oklch(0.2 0.012 265);
+  /* Cartes ~2 crans au-dessus du fond : elles "flottent" au lieu de se noyer. */
+  --card: oklch(0.215 0.016 265);
   --card-foreground: oklch(0.97 0.005 265);
-  --popover: oklch(0.2 0.012 265);
+  --popover: oklch(0.215 0.016 265);
   --popover-foreground: oklch(0.97 0.005 265);
 
-  /* Accent plus lumineux en dark pour rester lisible. */
-  --primary: oklch(0.7 0.16 265);
+  /* Accent lumineux mais désaturé -> lisible sans hurler. */
+  --primary: oklch(0.72 0.17 265);
   --primary-foreground: oklch(0.15 0.02 265);
 
-  --secondary: oklch(0.27 0.015 265);
+  --secondary: oklch(0.27 0.018 265);
   --secondary-foreground: oklch(0.97 0.005 265);
-  --muted: oklch(0.27 0.015 265);
-  --muted-foreground: oklch(0.68 0.015 265);
-  --accent: oklch(0.3 0.03 265);
-  --accent-foreground: oklch(0.85 0.12 265);
+  --muted: oklch(0.255 0.018 265);
+  --muted-foreground: oklch(0.72 0.02 265);
+  --accent: oklch(0.31 0.04 265);
+  --accent-foreground: oklch(0.88 0.12 265);
 
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.7 0.16 265 / 40%);
+  --destructive: oklch(0.72 0.19 22);
+  /* Bordure translucide -> se pose sur toutes les surfaces sans dur. */
+  --border: oklch(1 0 0 / 7%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.72 0.17 265 / 45%);
 
   --chart-1: oklch(0.72 0.16 265);
   --chart-2: oklch(0.75 0.14 200);
@@ -229,5 +232,32 @@
   .motion-in-delay-3,
   .motion-in-delay-4 {
     animation: none;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+/* Transitions natives entre pages (Chromium >= 111, Safari 18). Fondu court,
+   invisible sur la plupart des changements mais qui adoucit les navigations. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root) {
+  animation: page-fade-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-new(root) {
+  animation: page-fade-in 220ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+@keyframes page-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
 }

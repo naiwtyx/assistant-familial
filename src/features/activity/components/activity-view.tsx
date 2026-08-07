@@ -10,7 +10,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { ListSkeleton } from "@/components/shared/list-skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
+import { FeedSkeleton } from "@/components/shared/list-skeleton";
+import { PageHeader } from "@/components/shared/page-header";
 import { useMyMembership } from "@/features/family/components/family-provider";
 
 import { useActivity } from "../hooks/use-activity";
@@ -54,37 +56,33 @@ export function ActivityView() {
   const { data: entries, isLoading, isError } = useActivity(family.id);
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <History className="text-primary size-5" />
-          Activité
-        </h1>
-        <p className="text-muted-foreground text-sm">Ce que la famille a fait récemment.</p>
-      </header>
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader title="Activité" subtitle="Ce que la famille a fait récemment" />
 
       {isLoading ? (
-        <ListSkeleton />
+        <FeedSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;activité.</p>
       ) : entries && entries.length === 0 ? (
-        <div className="text-muted-foreground py-10 text-center text-sm">
-          Aucune activité pour l&apos;instant.
-        </div>
+        <EmptyState
+          icon={History}
+          title="Rien à raconter pour l'instant"
+          description="Dès qu'un membre coche une tâche, ajoute un événement ou cuisine une recette, ça apparaîtra ici."
+        />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="motion-in-delay-1 flex flex-col gap-2">
           {entries?.map((entry) => {
             const { icon: Icon, text } = describe(entry);
             return (
-              <li key={entry.id} className="flex items-start gap-3 rounded-xl border p-3">
-                <span className="bg-primary/10 text-primary mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full">
-                  <Icon className="size-4" />
+              <li key={entry.id} className="bg-card shadow-soft flex items-start gap-3 rounded-2xl p-3.5">
+                <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-xl">
+                  <Icon className="size-[18px]" strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm break-words">
+                  <p className="text-[15px] break-words">
                     <span className="font-medium">{entry.authorName ?? "Quelqu'un"}</span> {text}
                   </p>
-                  <p className="text-muted-foreground text-xs">{timeAgo(entry.created_at)}</p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">{timeAgo(entry.created_at)}</p>
                 </div>
               </li>
             );

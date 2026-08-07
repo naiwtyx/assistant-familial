@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 
+import { PageHeader } from "@/components/shared/page-header";
+import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -15,6 +17,7 @@ import { useActiveFamily } from "@/features/family/components/family-provider";
 import { useAddScannedItems } from "@/features/inventory/hooks/use-inventory";
 import { analyzeReceipt } from "@/features/scanner/services/scanner.service";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { haptic } from "@/lib/haptics";
 
 type ScanItem = {
   name: string;
@@ -81,6 +84,7 @@ export function ScannerView() {
       setImages((prev) => [...prev, ...urls].slice(0, MAX_PHOTOS));
       setItems(null);
       setMeta(null);
+      haptic("light");
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -106,6 +110,8 @@ export function ScannerView() {
       }));
       if (detected.length === 0) {
         toast.info("Aucun produit détecté sur le ticket.");
+      } else {
+        haptic("success");
       }
       setItems(detected);
       setMeta({ store: analysis.store, date: analysis.date, total: analysis.total });
@@ -157,18 +163,19 @@ export function ScannerView() {
     }
   }
 
+  const scanTip =
+    images.length === 0 && !items
+      ? "Aligne le ticket bien à plat et dans un endroit éclairé pour que l'IA lise chaque ligne."
+      : null;
+
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <Camera className="text-primary size-5" />
-          Scanner un ticket
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Prends une ou plusieurs photos (pour les longs tickets). L&apos;IA lit les produits et
-          les prix.
-        </p>
-      </header>
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader
+        title="Scanner un ticket"
+        subtitle="L'IA lit les produits et les prix"
+      />
+
+      <PageSuggestion text={scanTip} />
 
       <input
         ref={fileInputRef}
@@ -181,22 +188,22 @@ export function ScannerView() {
       />
 
       {images.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="motion-in-delay-1 bg-card shadow-soft flex flex-wrap gap-2.5 rounded-2xl p-3">
           {images.map((src, index) => (
             <div key={index} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={src}
                 alt={`Ticket ${index + 1}`}
-                className="size-20 rounded-lg border object-cover"
+                className="size-20 rounded-xl border object-cover shadow-soft"
               />
               <button
                 type="button"
                 onClick={() => removeImage(index)}
-                className="bg-background text-muted-foreground hover:text-destructive absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border"
+                className="bg-background text-muted-foreground hover:text-destructive shadow-soft absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full border transition-transform active:scale-90"
                 aria-label="Retirer la photo"
               >
-                <X className="size-3" />
+                <X className="size-3.5" strokeWidth={2} />
               </button>
             </div>
           ))}
@@ -204,41 +211,58 @@ export function ScannerView() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="text-muted-foreground hover:text-foreground flex size-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-xs"
+              className="text-muted-foreground hover:text-primary hover:border-primary/40 flex size-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed text-xs transition-all active:scale-95"
             >
-              <Plus className="size-4" />
+              <Plus className="size-4" strokeWidth={1.75} />
               Photo
             </button>
           ) : null}
         </div>
-      ) : null}
-
-      {images.length === 0 ? (
-        <Button onClick={() => fileInputRef.current?.click()}>
-          <Camera className="size-4" />
-          Photographier le ticket
-        </Button>
       ) : (
-        <Button onClick={analyze} disabled={isAnalyzing}>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="motion-in-delay-1 group bg-ai-gradient hover:shadow-elevated flex flex-col items-center justify-center gap-3 rounded-3xl p-10 shadow-ai transition-all active:scale-[0.98]"
+        >
+          <div className="bg-primary/15 text-primary flex size-14 items-center justify-center rounded-2xl transition-transform group-hover:scale-105">
+            <Camera className="size-7" strokeWidth={1.75} />
+          </div>
+          <div className="text-center">
+            <p className="text-[15px] font-medium">Photographier le ticket</p>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              Tu peux prendre plusieurs photos pour les longs tickets
+            </p>
+          </div>
+        </button>
+      )}
+
+      {images.length > 0 ? (
+        <Button
+          onClick={analyze}
+          disabled={isAnalyzing}
+          className="h-11 rounded-xl transition-transform active:scale-[0.98]"
+        >
           {isAnalyzing ? <Loader2 className="size-4 animate-spin" /> : null}
           {isAnalyzing ? "Analyse…" : `Analyser (${images.length} photo${images.length > 1 ? "s" : ""})`}
         </Button>
-      )}
+      ) : null}
 
       {items && items.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-muted-foreground text-xs font-medium uppercase">
+        <div className="motion-in-delay-2 flex flex-col gap-3">
+          <div className="flex items-baseline justify-between px-1">
+            <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.08em] uppercase">
               {meta?.store ?? "Produits détectés"}
             </p>
             {meta?.total != null ? (
-              <p className="text-sm font-medium tabular-nums">{euro.format(meta.total)}</p>
+              <p className="font-heading text-lg font-semibold tabular-nums">
+                {euro.format(meta.total)}
+              </p>
             ) : null}
           </div>
 
-          <ul className="flex flex-col gap-2">
+          <ul className="bg-card shadow-soft flex flex-col gap-1 rounded-2xl p-2">
             {items.map((item, index) => (
-              <li key={index} className="rounded-lg border p-2">
+              <li key={index} className="hover:bg-accent/40 rounded-xl p-2 transition-colors">
                 <div className="flex items-center gap-2">
                   <Checkbox
                     checked={item.selected}
@@ -296,12 +320,20 @@ export function ScannerView() {
             ))}
           </ul>
 
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground px-1 text-xs">
             Coché = ajouté à l&apos;inventaire. La dépense enregistre tout le ticket.
           </p>
 
-          <Button onClick={save} disabled={isSaving}>
-            {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          <Button
+            onClick={save}
+            disabled={isSaving}
+            className="h-11 rounded-xl transition-transform active:scale-[0.98]"
+          >
+            {isSaving ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Save className="size-4" strokeWidth={1.75} />
+            )}
             Enregistrer
           </Button>
         </div>

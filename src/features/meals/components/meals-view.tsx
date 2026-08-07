@@ -5,11 +5,16 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 import { useRecipes } from "@/features/recipes/hooks/use-recipes";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { haptic } from "@/lib/haptics";
+import { cn } from "@/lib/utils";
 
 import {
   useAddPlannedToShopping,
@@ -40,9 +45,29 @@ export function MealsView() {
   const cook = useCookMeal(family.id);
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
+  const mealByKey = useMemo(
+    () => new Map((meals ?? []).map((meal) => [`${meal.date}:${meal.slot}`, meal])),
+    [meals],
+  );
 
-  // Recherche rapide d'un repas par créneau.
-  const mealByKey = new Map((meals ?? []).map((meal) => [`${meal.date}:${meal.slot}`, meal]));
+  const plannedCount = useMemo(
+    () => (meals ?? []).filter((meal) => meal.recipe_id != null).length,
+    [meals],
+  );
+  const totalSlots = days.length * SLOTS.length;
+  const suggestion = (() => {
+    if ((recipes?.length ?? 0) === 0) return null;
+    if (plannedCount === 0) {
+      return "Aucun repas planifié cette semaine — demande à l'assistant de la remplir pour toi.";
+    }
+    if (plannedCount < totalSlots / 2) {
+      return `${plannedCount} repas sur ${totalSlots} planifiés — il reste de la place pour improviser.`;
+    }
+    if (plannedCount === totalSlots) {
+      return "Semaine complètement planifiée. Ajoute les ingrédients manquants aux courses en un tap.";
+    }
+    return null;
+  })();
 
   function shiftWeek(offset: number) {
     setWeekStart(toISODate(addDays(new Date(`${weekStart}T00:00:00`), offset * 7)));
@@ -56,6 +81,7 @@ export function MealsView() {
     if (recipeId === "") {
       clearMeal.mutate({ date, slot }, { onError });
     } else {
+      haptic("light");
       setMeal.mutate({ date, slot, recipeId }, { onError });
     }
   }
@@ -80,6 +106,7 @@ export function MealsView() {
   }
 
   function handleCook(recipeId: string) {
+    haptic("success");
     cook.mutate(recipeId, {
       onSuccess: (count) =>
         toast.success(
@@ -94,89 +121,126 @@ export function MealsView() {
   const hasRecipes = (recipes?.length ?? 0) > 0;
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <CalendarDays className="text-primary size-5" />
-          Repas de la semaine
-        </h1>
-        <p className="text-muted-foreground text-sm">Planifiez, puis remplissez les courses.</p>
-      </header>
+    <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
+      <PageHeader title="Repas de la semaine" subtitle="Planifiez, puis remplissez les courses" />
 
-      <div className="flex items-center justify-between gap-2">
-        <Button variant="outline" size="icon" onClick={() => shiftWeek(-1)} aria-label="Semaine précédente">
-          <ChevronLeft className="size-4" />
+      <PageSuggestion text={suggestion} />
+
+      {/* Sélecteur de semaine premium : pill navigation Apple-style. */}
+      <div className="motion-in-delay-1 bg-card shadow-soft flex items-center justify-between gap-2 rounded-2xl p-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => shiftWeek(-1)}
+          aria-label="Semaine précédente"
+          className="rounded-full"
+        >
+          <ChevronLeft className="size-4" strokeWidth={1.75} />
         </Button>
         <span className="text-sm font-medium capitalize">{weekRangeLabel(weekStart)}</span>
-        <Button variant="outline" size="icon" onClick={() => shiftWeek(1)} aria-label="Semaine suivante">
-          <ChevronRight className="size-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => shiftWeek(1)}
+          aria-label="Semaine suivante"
+          className="rounded-full"
+        >
+          <ChevronRight className="size-4" strokeWidth={1.75} />
         </Button>
       </div>
 
       {!hasRecipes ? (
-        <div className="text-muted-foreground rounded-xl border border-dashed p-4 text-center text-sm">
-          Crée d&apos;abord des <Link href="/recettes" className="text-primary underline">recettes</Link>{" "}
-          pour pouvoir planifier tes repas.
+        <EmptyState
+          icon={CalendarDays}
+          title="Crée d'abord des recettes"
+          description="Sans recettes, impossible de planifier tes repas. Ajoutes-en quelques-unes pour commencer."
+          action={
+            <Link
+              href="/recettes"
+              className="bg-primary text-primary-foreground inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-transform active:scale-95"
+            >
+              Créer une recette
+            </Link>
+          }
+        />
+      ) : (
+        <div className="motion-in-delay-2 flex flex-col gap-2.5">
+          {days.map((day) => {
+            const isToday = day.iso === TODAY_ISO;
+            return (
+              <div
+                key={day.iso}
+                className={cn(
+                  "bg-card shadow-soft rounded-2xl p-4 transition-shadow",
+                  isToday && "ring-primary/40 ring-1",
+                )}
+              >
+                <div className="mb-2.5 flex items-baseline justify-between">
+                  <p className="text-[15px] font-medium capitalize">
+                    {day.label}{" "}
+                    <span className="text-muted-foreground text-sm font-normal">{day.dayNum}</span>
+                  </p>
+                  {isToday ? (
+                    <span className="text-primary bg-primary/10 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] uppercase">
+                      Aujourd&apos;hui
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-col gap-2">
+                  {SLOTS.map(({ slot, label }) => {
+                    const meal = mealByKey.get(`${day.iso}:${slot}`);
+                    return (
+                      <div key={slot} className="flex items-center gap-2">
+                        <span className="text-muted-foreground w-10 shrink-0 text-[11px] font-semibold tracking-[0.08em] uppercase">
+                          {label}
+                        </span>
+                        <NativeSelect
+                          value={meal?.recipe_id ?? ""}
+                          disabled={!hasRecipes}
+                          onChange={(event) => handleSlotChange(day.iso, slot, event.target.value)}
+                          aria-label={`${label} du ${day.label} ${day.dayNum}`}
+                          className="flex-1"
+                        >
+                          <option value="">—</option>
+                          {recipes?.map((recipe) => (
+                            <option key={recipe.id} value={recipe.id}>
+                              {recipe.name}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                        {meal?.recipe_id ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-primary shrink-0"
+                            disabled={cook.isPending}
+                            onClick={() => handleCook(meal.recipe_id as string)}
+                            aria-label="J'ai cuisiné ce repas (déduire de l'inventaire)"
+                            title="J'ai cuisiné : déduire de l'inventaire"
+                          >
+                            <ChefHat className="size-4" strokeWidth={1.75} />
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      {hasRecipes ? (
+        <Button
+          onClick={handleAddToShopping}
+          disabled={addToShopping.isPending}
+          className="motion-in-delay-3 h-11 rounded-xl transition-transform active:scale-[0.98]"
+        >
+          <ShoppingCart className="size-4" strokeWidth={1.75} />
+          Ajouter les ingrédients aux courses
+        </Button>
       ) : null}
-
-      <div className="flex flex-col gap-2">
-        {days.map((day) => (
-          <div
-            key={day.iso}
-            className={`rounded-xl border p-3 ${day.iso === TODAY_ISO ? "border-primary/50" : ""}`}
-          >
-            <p className="text-sm font-medium capitalize">
-              {day.label} {day.dayNum}
-              {day.iso === TODAY_ISO ? (
-                <span className="text-primary ml-1 text-xs font-normal">· aujourd&apos;hui</span>
-              ) : null}
-            </p>
-            <div className="mt-2 flex flex-col gap-2">
-              {SLOTS.map(({ slot, label }) => {
-                const meal = mealByKey.get(`${day.iso}:${slot}`);
-                return (
-                  <div key={slot} className="flex items-center gap-2">
-                    <span className="text-muted-foreground w-9 shrink-0 text-xs">{label}</span>
-                    <NativeSelect
-                      value={meal?.recipe_id ?? ""}
-                      disabled={!hasRecipes}
-                      onChange={(event) => handleSlotChange(day.iso, slot, event.target.value)}
-                      aria-label={`${label} du ${day.label} ${day.dayNum}`}
-                      className="flex-1"
-                    >
-                      <option value="">—</option>
-                      {recipes?.map((recipe) => (
-                        <option key={recipe.id} value={recipe.id}>
-                          {recipe.name}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                    {meal?.recipe_id ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        disabled={cook.isPending}
-                        onClick={() => handleCook(meal.recipe_id as string)}
-                        aria-label="J'ai cuisiné ce repas (déduire de l'inventaire)"
-                        title="J'ai cuisiné : déduire de l'inventaire"
-                      >
-                        <ChefHat className="size-4" />
-                      </Button>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Button onClick={handleAddToShopping} disabled={addToShopping.isPending}>
-        <ShoppingCart className="size-4" />
-        Ajouter les ingrédients aux courses
-      </Button>
     </main>
   );
 }
