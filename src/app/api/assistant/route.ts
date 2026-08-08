@@ -153,12 +153,16 @@ export async function POST(request: Request) {
   });
   const todayIso = now.toISOString().slice(0, 10);
 
+  // Ne renvoie que les derniers échanges : l'historique complet est re-transmis
+  // à chaque tour d'outil, ce qui consomme beaucoup de tokens (quota Groq).
+  const recentMessages = parsed.data.messages.slice(-10);
+
   const messages: Groq.Chat.Completions.ChatCompletionMessageParam[] = [
     {
       role: "system",
       content: `${SYSTEM_PROMPT}\n\nDate du jour : ${todayLabel} (${todayIso}). Calcule les dates des repas (« aujourd'hui », « demain », « cette semaine »…) à partir de cette date, au format AAAA-MM-JJ.`,
     },
-    ...parsed.data.messages.map((message) => ({
+    ...recentMessages.map((message) => ({
       role: message.role,
       content: message.content,
     })),
@@ -220,6 +224,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ text: message?.content ?? "", actions: proposedActions });
   } catch (error) {
     console.error("[assistant] erreur:", error);
+    // Limite quotidienne Groq atteinte : message clair (+ délai si connu).
+    if (isRateLimited(error)) {
+      const wait = extractRetryDelay(error);
+      return NextResponse.json(
+        {
+          error: `Limite quotidienne de l'assistant atteinte.${wait ? ` Réessaie dans ${wait}.` : " Réessaie plus tard."}`,
+        },
+        { status: 429 },
+      );
+    }
     // Message clair plutôt que le 400 brut de Groq quand le modèle bloque.
     if (isToolUseFailed(error)) {
       return NextResponse.json(
@@ -229,4 +243,19 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
+}
+
+function isRateLimited(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  const message = String((error as { message?: unknown })?.message ?? error);
+  return status === 429 || /rate.?limit|rate_limit_exceeded|too many requests/i.test(message);
+}
+
+/** Extrait un délai lisible (« 8m14s », « 30s ») du message Groq, si présent. */
+function extractRetryDelay(error: unknown): string | null {
+  const message = String((error as { message?: unknown })?.message ?? error);
+  const match = message.match(/try again in ([0-9hms.]+)/i);
+  const delay = match?.[1];
+  if (!delay) return null;
+  return delay.replace(/\.\d+s/, "s"); // « 8m14.208s » -> « 8m14s »
 }
