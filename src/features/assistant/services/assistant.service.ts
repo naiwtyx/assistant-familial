@@ -21,17 +21,39 @@ export type ExecutedAction = {
 
 export type AssistantReply = { text: string; actions: ProposedAction[] };
 
+/** Abandonne une requête `fetch` après `ms` millisecondes (évite un spinner infini). */
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("L'assistant met trop de temps à répondre. Réessaie.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Envoie l'historique à l'assistant et retourne sa réponse + les actions proposées. */
 export async function sendAssistantMessage(messages: ChatMessage[]): Promise<AssistantReply> {
-  const response = await fetch("/api/assistant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
-  });
-  const data = (await response.json()) as { text?: string; actions?: ProposedAction[]; error?: string };
+  const response = await fetchWithTimeout(
+    "/api/assistant",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    },
+    35000,
+  );
+  const data = (await response.json().catch(() => null)) as
+    | { text?: string; actions?: ProposedAction[]; error?: string }
+    | null;
 
-  if (!response.ok || data.error) {
-    throw new Error(data.error ?? "L'assistant n'a pas pu répondre.");
+  if (!response.ok || !data || data.error) {
+    throw new Error(data?.error ?? "L'assistant n'a pas pu répondre.");
   }
 
   return { text: data.text ?? "", actions: data.actions ?? [] };

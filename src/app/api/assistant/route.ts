@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 30; // laisse le temps à la boucle d'outils sans être tué trop tôt
 
 const requestSchema = z.object({
   messages: z
@@ -41,12 +42,11 @@ Les dates sont au format AAAA-MM-JJ. Ne planifie que des recettes existantes (ge
 pour assigner une tâche, retrouve le prénom exact avec getFamilyMembers. Le budget est réservé
 aux parents. Sois concis, amical, en français. N'invente jamais de données.`;
 
-const MAX_TOOL_ROUNDS = 6;
+const MAX_TOOL_ROUNDS = 4;
 
 /**
  * Llama sur Groq échoue parfois à formater un appel d'outil (« tool_use_failed » :
- * il écrit la fonction en texte au lieu du format structuré). C'est stochastique
- * -> on réessaie quelques fois avant d'abandonner.
+ * il écrit la fonction en texte au lieu du format structuré). C'est stochastique.
  */
 function isToolUseFailed(error: unknown): boolean {
   const message = String((error as { message?: unknown })?.message ?? error);
@@ -55,20 +55,28 @@ function isToolUseFailed(error: unknown): boolean {
 
 type CompletionParams = Parameters<Groq["chat"]["completions"]["create"]>[0];
 
+/**
+ * Appelle Groq en réessayant sur « tool_use_failed » — mais en variant la
+ * température à chaque tentative : re-tenter la génération à l'identique
+ * (température fixe) reproduirait le même raté. Une température plus haute
+ * perturbe la génération et casse la boucle. Max 3 tentatives.
+ */
 async function createCompletion(
   groq: Groq,
   params: CompletionParams,
 ): Promise<Groq.Chat.Completions.ChatCompletion> {
-  const MAX_ATTEMPTS = 3;
-  for (let attempt = 1; ; attempt += 1) {
+  const temperatures = [0.2, 0.5, 0.8];
+  let lastError: unknown;
+  for (const temperature of temperatures) {
     try {
-      const completion = await groq.chat.completions.create(params);
+      const completion = await groq.chat.completions.create({ ...params, temperature });
       return completion as Groq.Chat.Completions.ChatCompletion;
     } catch (error) {
-      if (attempt < MAX_ATTEMPTS && isToolUseFailed(error)) continue;
-      throw error;
+      lastError = error;
+      if (!isToolUseFailed(error)) throw error;
     }
   }
+  throw lastError;
 }
 
 export async function POST(request: Request) {
@@ -159,7 +167,6 @@ export async function POST(request: Request) {
       messages,
       tools,
       tool_choice: "auto",
-      temperature: 0.2, // plus déterministe -> moins d'appels d'outils malformés
     });
     let message = completion.choices[0]?.message;
 
@@ -200,7 +207,6 @@ export async function POST(request: Request) {
         messages,
         tools,
         tool_choice: "auto",
-        temperature: 0.2,
       });
       message = completion.choices[0]?.message;
     }
