@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, Send, Sparkles, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ type UiMessage = {
 
 export function AssistantView() {
   const { canUseAi } = useMyMembership();
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -108,8 +110,15 @@ export function AssistantView() {
     try {
       const results = await executeActions(actions);
       const ok = results.filter((r) => r.ok).length;
+      const failed = results.length - ok;
       haptic(ok > 0 ? "success" : "warning");
       patchMessage(index, { busy: false, actions: undefined, executed: results });
+      // L'exécution se fait côté serveur : on rafraîchit les caches pour que
+      // les onglets (Courses, Tâches, Recettes…) reflètent le changement tout
+      // de suite, sans dépendre du temps réel.
+      void queryClient.invalidateQueries();
+      if (ok > 0) toast.success(ok > 1 ? `${ok} actions effectuées` : "C'est fait");
+      if (failed > 0) toast.error(`${failed} action(s) en échec`);
     } catch (error) {
       patchMessage(index, { busy: false });
       toast.error(getErrorMessage(error));
@@ -124,6 +133,8 @@ export function AssistantView() {
       await undoActions(specs);
       haptic("light");
       patchMessage(index, { busy: false, undone: true });
+      void queryClient.invalidateQueries();
+      toast.success("Annulé");
     } catch (error) {
       patchMessage(index, { busy: false });
       toast.error(getErrorMessage(error));

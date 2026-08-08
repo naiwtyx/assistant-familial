@@ -43,6 +43,34 @@ aux parents. Sois concis, amical, en français. N'invente jamais de données.`;
 
 const MAX_TOOL_ROUNDS = 6;
 
+/**
+ * Llama sur Groq échoue parfois à formater un appel d'outil (« tool_use_failed » :
+ * il écrit la fonction en texte au lieu du format structuré). C'est stochastique
+ * -> on réessaie quelques fois avant d'abandonner.
+ */
+function isToolUseFailed(error: unknown): boolean {
+  const message = String((error as { message?: unknown })?.message ?? error);
+  return /tool_use_failed|not in request\.tools/i.test(message);
+}
+
+type CompletionParams = Parameters<Groq["chat"]["completions"]["create"]>[0];
+
+async function createCompletion(
+  groq: Groq,
+  params: CompletionParams,
+): Promise<Groq.Chat.Completions.ChatCompletion> {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const completion = await groq.chat.completions.create(params);
+      return completion as Groq.Chat.Completions.ChatCompletion;
+    } catch (error) {
+      if (attempt < MAX_ATTEMPTS && isToolUseFailed(error)) continue;
+      throw error;
+    }
+  }
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -126,11 +154,12 @@ export async function POST(request: Request) {
   const proposedActions: ProposedAction[] = [];
 
   try {
-    let completion = await groq.chat.completions.create({
+    let completion = await createCompletion(groq, {
       model,
       messages,
       tools,
       tool_choice: "auto",
+      temperature: 0.2, // plus déterministe -> moins d'appels d'outils malformés
     });
     let message = completion.choices[0]?.message;
 
@@ -166,11 +195,12 @@ export async function POST(request: Request) {
         messages.push({ role: "tool", tool_call_id: call.id, content: result });
       }
 
-      completion = await groq.chat.completions.create({
+      completion = await createCompletion(groq, {
         model,
         messages,
         tools,
         tool_choice: "auto",
+        temperature: 0.2,
       });
       message = completion.choices[0]?.message;
     }
@@ -178,6 +208,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ text: message?.content ?? "", actions: proposedActions });
   } catch (error) {
     console.error("[assistant] erreur:", error);
+    // Message clair plutôt que le 400 brut de Groq quand le modèle bloque.
+    if (isToolUseFailed(error)) {
+      return NextResponse.json(
+        { error: "L'assistant a eu un raté. Reformule ou réessaie en une phrase simple." },
+        { status: 502 },
+      );
+    }
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
