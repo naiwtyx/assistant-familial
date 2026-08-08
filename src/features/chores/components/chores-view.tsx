@@ -135,6 +135,12 @@ export function ChoresView() {
     );
   }
 
+  const hasChores = (chores?.length ?? 0) > 0;
+  // Sur liste vide, l'EmptyState (avec son bouton) EST l'appel à l'action :
+  // on cache la carte repliée "Nouvelle tâche" pour éviter deux boutons
+  // d'ajout redondants.
+  const showFormCard = isOpen || hasChores;
+
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
       <PageHeader title="Tâches" subtitle="Répartissez les corvées de la famille" />
@@ -169,7 +175,9 @@ export function ChoresView() {
         </div>
       ) : null}
 
-      {/* Form collapsible — même pattern que l'agenda pour cohérence. */}
+      {/* Form collapsible — même pattern que l'agenda pour cohérence.
+          Masqué quand la liste est vide (l'EmptyState prend le relais). */}
+      {showFormCard ? (
       <div
         className={cn(
           "motion-in-delay-2 overflow-hidden rounded-2xl transition-all",
@@ -315,12 +323,13 @@ export function ChoresView() {
           </button>
         )}
       </div>
+      ) : null}
 
       {isLoading ? (
         <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger les tâches.</p>
-      ) : chores && chores.length === 0 && !isOpen ? (
+      ) : !hasChores && !isOpen ? (
         <EmptyState
           icon={CheckSquare}
           title="Aucune tâche"
@@ -332,7 +341,7 @@ export function ChoresView() {
             </Button>
           }
         />
-      ) : chores && chores.length === 0 ? null : (
+      ) : !hasChores ? null : (
         <ul className="motion-in-delay-3 bg-card shadow-soft flex flex-col rounded-2xl p-2">
           {chores?.map((chore) => {
             const overdue = !chore.done && chore.due_date != null && chore.due_date < TODAY;

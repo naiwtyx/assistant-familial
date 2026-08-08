@@ -236,11 +236,17 @@ export function InventoryFormDialog({ familyId, open, onOpenChange, item }: Prop
             </DetailField>
           </div>
 
-          <div className="mt-1 flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          {/* Barre d'action collée en bas : reste au-dessus du clavier iOS. */}
+          <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-2 border-t bg-popover/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="flex-1"
+            >
               Annuler
             </Button>
-            <Button type="submit" disabled={pending} className="min-w-[100px]">
+            <Button type="submit" disabled={pending} className="flex-[2]">
               {pending ? "Enregistrement…" : isEdit ? "Enregistrer" : "Ajouter"}
             </Button>
           </div>

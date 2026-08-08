@@ -103,6 +103,12 @@ export function EventsView() {
   }
 
   const groups = events ? groupByDate(events) : [];
+  const hasEvents = groups.length > 0;
+  // Sur liste vide, l'EmptyState (avec son bouton) EST l'appel à l'action :
+  // on cache la carte repliée "Nouvel événement" pour éviter deux boutons
+  // d'ajout redondants. On la montre dès qu'il y a des événements ou que le
+  // form est ouvert.
+  const showFormCard = isOpen || hasEvents;
 
   const suggestion = (() => {
     if (!events || events.length === 0) return null;
@@ -130,7 +136,9 @@ export function EventsView() {
 
       {/* Form collapsible : replié = un simple bouton "+ Ajouter" ; déplié =
           form action-first avec labels clairs. Cache le clutter à l'état
-          consultation et donne toute la place à la saisie quand on crée. */}
+          consultation et donne toute la place à la saisie quand on crée.
+          Masqué quand la liste est vide (l'EmptyState prend le relais). */}
+      {showFormCard ? (
       <div
         className={cn(
           "motion-in-delay-1 overflow-hidden rounded-2xl transition-all",
@@ -280,12 +288,13 @@ export function EventsView() {
           </button>
         )}
       </div>
+      ) : null}
 
       {isLoading ? (
         <FeedSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;agenda.</p>
-      ) : groups.length === 0 && !isOpen ? (
+      ) : !hasEvents && !isOpen ? (
         <EmptyState
           icon={CalendarClock}
           title="Aucun événement à venir"
@@ -297,7 +306,7 @@ export function EventsView() {
             </Button>
           }
         />
-      ) : groups.length === 0 ? null : (
+      ) : !hasEvents ? null : (
         <div className="motion-in-delay-2 flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.date}>
