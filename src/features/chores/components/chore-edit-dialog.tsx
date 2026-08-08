@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DateField } from "@/components/ui/date-time-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -115,13 +116,7 @@ export function ChoreEditDialog({
                 <Label className="text-muted-foreground text-[11px] font-medium">
                   Échéance · optionnel
                 </Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
-                  aria-label="Échéance"
-                  className="h-10 scroll-mt-24 scroll-mb-32"
-                />
+                <DateField value={dueDate} onChange={setDueDate} ariaLabel="Échéance" />
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-muted-foreground text-[11px] font-medium">Points</Label>

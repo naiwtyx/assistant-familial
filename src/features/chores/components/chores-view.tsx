@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateField } from "@/components/ui/date-time-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -236,17 +237,10 @@ export function ChoresView() {
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="grid gap-1.5">
-                    <Label htmlFor="chore-date" className="text-muted-foreground text-[11px] font-medium">
+                    <Label className="text-muted-foreground text-[11px] font-medium">
                       Échéance · optionnel
                     </Label>
-                    <Input
-                      id="chore-date"
-                      type="date"
-                      value={dueDate}
-                      min={TODAY}
-                      onChange={(event) => setDueDate(event.target.value)}
-                      className="h-10 scroll-mt-24 scroll-mb-32"
-                    />
+                    <DateField value={dueDate} onChange={setDueDate} min={TODAY} ariaLabel="Échéance" />
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="chore-points" className="text-muted-foreground text-[11px] font-medium">

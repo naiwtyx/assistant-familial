@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { DateField } from "@/components/ui/date-time-field";
 import {
   Dialog,
   DialogContent,
@@ -226,12 +227,11 @@ export function InventoryFormDialog({ familyId, open, onOpenChange, item }: Prop
               </DetailField>
             </div>
             <DetailField id="inv-exp" label="Date de péremption · optionnelle">
-              <Input
-                id="inv-exp"
-                type="date"
+              <DateField
                 value={expiryDate}
-                onChange={(event) => setExpiryDate(event.target.value)}
-                className="h-10"
+                onChange={setExpiryDate}
+                placeholder="Aucune date"
+                ariaLabel="Date de péremption"
               />
             </DetailField>
           </div>

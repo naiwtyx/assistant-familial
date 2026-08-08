@@ -9,6 +9,7 @@ import { FeedSkeleton } from "@/components/shared/list-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
+import { DateField, TimeField } from "@/components/ui/date-time-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -181,35 +182,16 @@ export function EventsView() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label
-                  htmlFor="ev-date"
-                  className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase"
-                >
+                <Label className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
                   Date
                 </Label>
-                <Input
-                  id="ev-date"
-                  type="date"
-                  value={date}
-                  min={TODAY}
-                  onChange={(event) => setDate(event.target.value)}
-                  className="h-11 text-[15px] scroll-mt-24 scroll-mb-32"
-                />
+                <DateField value={date} onChange={setDate} min={TODAY} ariaLabel="Date de l'événement" />
               </div>
               <div className="grid gap-1.5">
-                <Label
-                  htmlFor="ev-time"
-                  className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase"
-                >
+                <Label className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
                   Heure · optionnel
                 </Label>
-                <Input
-                  id="ev-time"
-                  type="time"
-                  value={time}
-                  onChange={(event) => setTime(event.target.value)}
-                  className="h-11 text-[15px] tabular-nums scroll-mt-24 scroll-mb-32"
-                />
+                <TimeField value={time} onChange={setTime} ariaLabel="Heure de l'événement" />
               </div>
             </div>
 
