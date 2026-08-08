@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { canMemberUseAi } from "@/features/family/lib/ai-access";
+import { buildProposedAction, writeToolToActionType, type ProposedAction } from "@/lib/ai/actions";
 import { buildExecutors, tools } from "@/lib/ai/build-tools";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { createClient } from "@/lib/supabase/server";
@@ -24,18 +25,21 @@ const requestSchema = z.object({
 const SYSTEM_PROMPT = `Tu es l'assistant de l'application « Assistant Familial ».
 Tu aides une famille à gérer : liste de courses, inventaire, recettes, planificateur de repas
 (créneaux « midi »/« soir »), tâches/corvées, agenda familial, idées/suggestions et budget
-(dépenses). Utilise les fonctions fournies pour LIRE et MODIFIER ces données. Quand la demande
-est claire (ajouter/supprimer un article, créer une recette, planifier des repas, créer/cocher/
-supprimer/réassigner une tâche, ajouter/modifier/supprimer un événement, ajouter une idée…),
-agis directement puis confirme brièvement. Les dates sont au format AAAA-MM-JJ.
-Pour modifier ou supprimer une tâche ou un événement existant, retrouve d'abord son intitulé
-exact avec getChores/getEvents (les recherches par titre sont sensibles à l'exactitude).
-Ne planifie que des recettes existantes (getRecipes) ; pour assigner/réassigner une tâche,
-retrouve le prénom exact avec getFamilyMembers. Pour planifier plusieurs repas d'un coup
-(« planifie ma semaine »), utilise planWeek plutôt que d'appeler planMeal en boucle : elle
-priorise automatiquement les recettes dont des ingrédients périment bientôt.
-Le budget est réservé aux parents. Sois concis, amical, et réponds toujours en français.
-N'invente jamais de données : appelle les fonctions de lecture pour connaître l'état réel.`;
+(dépenses). Utilise les fonctions de LECTURE (get…) pour connaître l'état réel avant de répondre.
+
+IMPORTANT — comment agir :
+- Les actions d'AJOUT et de CRÉATION (addShoppingItem, updateInventory, planMeal, createRecipe,
+  addChore, addEvent, addIdea) ne s'exécutent PAS immédiatement : elles sont PROPOSÉES à
+  l'utilisateur, qui les confirme d'un tap dans l'interface. Quand tu appelles l'un de ces
+  outils, considère l'action comme « proposée, en attente de confirmation » — surtout NE dis
+  jamais qu'elle est déjà faite. Formule une courte proposition (« Je te propose d'ajouter… »).
+- Tu peux proposer plusieurs actions d'un coup (ex. plusieurs ingrédients manquants) : appelle
+  l'outil une fois par action, elles seront regroupées et confirmées ensemble.
+- Les autres opérations (suppressions, modifications) s'exécutent directement — sois prudent.
+
+Les dates sont au format AAAA-MM-JJ. Ne planifie que des recettes existantes (getRecipes) ;
+pour assigner une tâche, retrouve le prénom exact avec getFamilyMembers. Le budget est réservé
+aux parents. Sois concis, amical, en français. N'invente jamais de données.`;
 
 const MAX_TOOL_ROUNDS = 6;
 
@@ -118,6 +122,9 @@ export async function POST(request: Request) {
     })),
   ];
 
+  // Actions d'ajout/création proposées à l'utilisateur (dédupliquées par libellé).
+  const proposedActions: ProposedAction[] = [];
+
   try {
     let completion = await groq.chat.completions.create({
       model,
@@ -134,15 +141,25 @@ export async function POST(request: Request) {
       // Rejoue le tour "appel d'outil" de l'assistant...
       messages.push(message);
 
-      // ...puis exécute chaque outil et renvoie les résultats.
+      // ...puis, pour chaque outil : soit on PROPOSE l'action (ajout/création),
+      // soit on l'exécute (lecture, ou écriture non gérée par la couche d'actions).
       for (const call of message.tool_calls) {
-        const executor = executors[call.function.name];
         let result: string;
         try {
           const args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
-          result = executor
-            ? await executor(args)
-            : `Outil inconnu : ${call.function.name}`;
+          if (writeToolToActionType(call.function.name)) {
+            const built = buildProposedAction(call.function.name, args);
+            if (built.ok) {
+              const isDuplicate = proposedActions.some((a) => a.label === built.action.label);
+              if (!isDuplicate) proposedActions.push(built.action);
+              result = `Action proposée à l'utilisateur (en attente de confirmation) : « ${built.action.label} ». Ne dis pas qu'elle est faite.`;
+            } else {
+              result = `Impossible de préparer l'action : ${built.error}`;
+            }
+          } else {
+            const executor = executors[call.function.name];
+            result = executor ? await executor(args) : `Outil inconnu : ${call.function.name}`;
+          }
         } catch (error) {
           result = `Erreur lors de l'exécution : ${getErrorMessage(error)}`;
         }
@@ -158,7 +175,7 @@ export async function POST(request: Request) {
       message = completion.choices[0]?.message;
     }
 
-    return NextResponse.json({ text: message?.content ?? "" });
+    return NextResponse.json({ text: message?.content ?? "", actions: proposedActions });
   } catch (error) {
     console.error("[assistant] erreur:", error);
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
