@@ -42,6 +42,11 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  // iOS Safari 15.4+/Chrome Android : le clavier redimensionne la fenêtre
+  // au lieu de la recouvrir. Les unités `dvh` et les positions `fixed`
+  // suivent alors correctement, ce qui rend les dialogs utilisables clavier
+  // ouvert sans hack.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

@@ -1,7 +1,7 @@
 "use client";
 
-import { CheckSquare, Pencil, Plus, Repeat, Trash2, Trophy, Users } from "lucide-react";
-import { useState } from "react";
+import { CheckSquare, ChevronDown, Pencil, Plus, Repeat, Trash2, Trophy, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,6 +11,7 @@ import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { useFamilyMembers } from "@/features/family/hooks/use-family";
@@ -47,12 +48,21 @@ export function ChoresView() {
   const setDone = useSetChoreDone(family.id);
   const removeChore = useDeleteChore(family.id);
 
+  const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [assignees, setAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [points, setPoints] = useState(1);
   const [recurrence, setRecurrence] = useState<"" | ChoreRecurrence>("");
   const [editing, setEditing] = useState<ChoreWithAssignees | null>(null);
+  const titleRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const id = window.setTimeout(() => titleRef.current?.focus(), 50);
+      return () => window.clearTimeout(id);
+    }
+  }, [isOpen]);
 
   const { data: leaderboard = [] } = useChoreLeaderboard(family.id);
 
@@ -82,6 +92,14 @@ export function ChoresView() {
     setAssignees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function reset() {
+    setTitle("");
+    setAssignees([]);
+    setDueDate("");
+    setPoints(1);
+    setRecurrence("");
+  }
+
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = title.trim();
@@ -97,11 +115,9 @@ export function ChoresView() {
       {
         onError,
         onSuccess: () => {
-          setTitle("");
-          setAssignees([]);
-          setDueDate("");
-          setPoints(1);
-          setRecurrence("");
+          haptic("success");
+          reset();
+          setIsOpen(false);
         },
       },
     );
@@ -113,79 +129,167 @@ export function ChoresView() {
 
       <PageSuggestion text={suggestion} />
 
+      {/* Classement compact — une seule ligne, très discret. Le podium ne
+          doit pas voler la place à la liste des tâches. */}
       {leaderboard.length > 0 ? (
-        <div className="motion-in-delay-1 bg-card shadow-soft rounded-2xl p-4">
-          <p className="mb-3 flex items-center gap-2 text-sm font-medium">
-            <Trophy className="size-4 text-amber-500" strokeWidth={1.75} />
-            Classement de la semaine
-          </p>
-          <ul className="flex flex-col gap-1">
-            {leaderboard.map((entry, index) => (
-              <li key={entry.name + index} className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2">
-                  <span className="text-muted-foreground w-4 tabular-nums">{index + 1}.</span>
-                  {entry.name}
+        <div className="motion-in-delay-1 bg-card shadow-soft flex items-center gap-3 rounded-2xl px-4 py-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            <Trophy className="size-4" strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
+              Classement de la semaine
+            </p>
+            <p className="mt-0.5 truncate text-[13px]">
+              {leaderboard.slice(0, 3).map((entry, index) => (
+                <span key={entry.name + index}>
+                  {index > 0 ? <span className="text-muted-foreground/50 mx-1.5">·</span> : null}
+                  <span className={cn("font-medium", index === 0 && "text-amber-600 dark:text-amber-400")}>
+                    {entry.name}
+                  </span>
+                  <span className="text-muted-foreground ml-1 tabular-nums">
+                    {entry.points} pt{entry.points > 1 ? "s" : ""}
+                  </span>
                 </span>
-                <span className="font-medium tabular-nums">{entry.points} pts</span>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </p>
+          </div>
         </div>
       ) : null}
 
-      <form onSubmit={submit} className="motion-in-delay-2 bg-card shadow-soft flex flex-col gap-2.5 rounded-2xl p-3.5">
-        <Input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="Nouvelle tâche…"
-          maxLength={120}
-          aria-label="Intitulé de la tâche"
-        />
-        <div className="flex flex-col gap-1.5">
-          <span className="text-muted-foreground flex items-center gap-1 text-xs">
-            <Users className="size-3" />
-            Pour qui ? (plusieurs possibles)
-          </span>
-          <AssigneePicker members={members} selected={assignees} onToggle={toggleAssignee} />
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="date"
-            value={dueDate}
-            min={TODAY}
-            onChange={(event) => setDueDate(event.target.value)}
-            aria-label="Échéance"
-            className="flex-1"
-          />
-          <NativeSelect
-            value={points}
-            onChange={(event) => setPoints(Number(event.target.value))}
-            aria-label="Points"
-            className="w-24"
+      {/* Form collapsible — même pattern que l'agenda pour cohérence. */}
+      <div
+        className={cn(
+          "motion-in-delay-2 overflow-hidden rounded-2xl transition-all",
+          isOpen ? "bg-card shadow-soft" : "",
+        )}
+      >
+        {isOpen ? (
+          <form onSubmit={submit} className="flex flex-col gap-4 p-4">
+            <div className="flex items-baseline justify-between">
+              <p className="font-heading text-sm font-semibold">Nouvelle tâche</p>
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setIsOpen(false);
+                }}
+                className="text-muted-foreground hover:text-foreground text-xs"
+              >
+                Annuler
+              </button>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label
+                htmlFor="chore-title"
+                className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase"
+              >
+                Intitulé
+              </Label>
+              <Input
+                id="chore-title"
+                ref={titleRef}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Nettoyer la cuisine, sortir les poubelles…"
+                maxLength={120}
+                className="h-11 text-[15px]"
+              />
+            </div>
+
+            {members && members.length > 0 ? (
+              <div className="grid gap-2">
+                <Label className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+                  Pour · plusieurs possibles
+                </Label>
+                <AssigneePicker members={members} selected={assignees} onToggle={toggleAssignee} />
+              </div>
+            ) : null}
+
+            <div className="bg-muted/40 flex flex-col gap-3 rounded-xl p-3">
+              <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
+                Détails
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="chore-date" className="text-muted-foreground text-[11px] font-medium">
+                    Échéance · optionnel
+                  </Label>
+                  <Input
+                    id="chore-date"
+                    type="date"
+                    value={dueDate}
+                    min={TODAY}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="chore-points" className="text-muted-foreground text-[11px] font-medium">
+                    Points
+                  </Label>
+                  <NativeSelect
+                    id="chore-points"
+                    value={points}
+                    onChange={(event) => setPoints(Number(event.target.value))}
+                    className="h-10"
+                  >
+                    {POINTS_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value} pt{value > 1 ? "s" : ""}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="chore-rec" className="text-muted-foreground text-[11px] font-medium">
+                  Répétition
+                </Label>
+                <NativeSelect
+                  id="chore-rec"
+                  value={recurrence}
+                  onChange={(event) => setRecurrence(event.target.value as "" | ChoreRecurrence)}
+                  className="h-10"
+                >
+                  <option value="">Ne pas répéter</option>
+                  <option value="daily">Chaque jour</option>
+                  <option value="weekly">Chaque semaine</option>
+                </NativeSelect>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={!title.trim() || addChore.isPending}
+              className="h-11 w-full rounded-xl text-[15px] transition-transform active:scale-[0.98]"
+            >
+              {addChore.isPending ? "Ajout…" : "Ajouter la tâche"}
+            </Button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="bg-card shadow-soft group flex w-full items-center gap-3 rounded-2xl p-4 text-left transition-all active:scale-[0.99]"
           >
-            {POINTS_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value} pt{value > 1 ? "s" : ""}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="flex gap-2">
-          <NativeSelect
-            value={recurrence}
-            onChange={(event) => setRecurrence(event.target.value as "" | ChoreRecurrence)}
-            aria-label="Répétition"
-            className="flex-1"
-          >
-            <option value="">Ne pas répéter</option>
-            <option value="daily">Chaque jour</option>
-            <option value="weekly">Chaque semaine</option>
-          </NativeSelect>
-          <Button type="submit" size="icon" disabled={!title.trim()} aria-label="Ajouter la tâche">
-            <Plus className="size-4" />
-          </Button>
-        </div>
-      </form>
+            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <Plus className="size-[18px]" strokeWidth={2} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium">Nouvelle tâche</p>
+              <p className="text-muted-foreground text-xs">
+                Assigne, note les points, planifie une récurrence
+              </p>
+            </div>
+            <ChevronDown
+              className="text-muted-foreground/60 size-4 shrink-0 transition-transform group-hover:translate-y-0.5"
+              strokeWidth={1.75}
+            />
+          </button>
+        )}
+      </div>
 
       {isLoading ? (
         <ListSkeleton />
@@ -196,6 +300,12 @@ export function ChoresView() {
           icon={CheckSquare}
           title="Aucune tâche"
           description="Répartissez les corvées de la maison. Chaque tâche faite rapporte des points au classement."
+          action={
+            <Button onClick={() => setIsOpen(true)} className="rounded-xl">
+              <Plus className="size-4" strokeWidth={2} />
+              Ajouter une tâche
+            </Button>
+          }
         />
       ) : (
         <ul className="motion-in-delay-3 bg-card shadow-soft flex flex-col rounded-2xl p-2">
