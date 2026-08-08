@@ -49,6 +49,12 @@
 }
 
 :root {
+  /* Indispensable : sans ça, les contrôles natifs (input date/time, selects,
+     pickers iOS) rendent leur texte en couleur "mode clair" — donc quasi
+     invisible sur fond sombre. C'est ce qui donnait l'effet "champs vides
+     fantômes" pour DATE / HEURE. */
+  color-scheme: light;
+
   /* Rayon un peu plus généreux (0.625 -> 0.875) : sensation iOS / Notion. */
   --radius: 0.875rem;
 
@@ -102,6 +108,10 @@
 }
 
 .dark {
+  /* Contrôles natifs (date/time/select/pickers) rendus en mode sombre :
+     leur texte redevient lisible sur fond sombre. */
+  color-scheme: dark;
+
   /* Fond légèrement bleuté-violacé (pas noir plat) : donne de la profondeur. */
   --background: oklch(0.16 0.012 265);
   --foreground: oklch(0.97 0.005 265);
@@ -165,6 +175,30 @@
   ::selection {
     background: color-mix(in oklch, var(--primary) 25%, transparent);
     color: var(--foreground);
+  }
+
+  /* Champs date/heure : sans fond ils ressemblent à des contours vides
+     ("boutons fantômes"). On leur donne une vraie présence de contrôle et
+     on rend l'icône du picker visible et cliquable. */
+  input[type="date"],
+  input[type="time"] {
+    background-color: color-mix(in oklch, var(--muted) 45%, transparent);
+    min-height: 2.75rem; /* zone tactile 44px minimum (guideline iOS) */
+  }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+    filter: var(--picker-indicator-filter, none);
+  }
+  /* En dark, l'icône du picker (noire par défaut) est invertie pour rester visible. */
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
   }
 }
 
