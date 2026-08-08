@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PRODUCT_CATEGORIES, STORAGE_LOCATIONS, UNITS } from "@/config/constants";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { haptic } from "@/lib/haptics";
 import type { InventoryItem } from "@/types/db";
 
 import { useAddInventoryItem, useUpdateInventoryItem } from "../hooks/use-inventory";
@@ -28,6 +29,26 @@ type Props = {
   /** Présent => mode édition. */
   item?: InventoryItem;
 };
+
+/** Petit champ compact utilisé pour la zone Détails (moins proéminent que le nom). */
+function DetailField({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={id} className="text-muted-foreground text-[11px] font-medium">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
 
 export function InventoryFormDialog({ familyId, open, onOpenChange, item }: Props) {
   const isEdit = Boolean(item);
@@ -68,7 +89,10 @@ export function InventoryFormDialog({ familyId, open, onOpenChange, item }: Prop
       return;
     }
 
-    const onSuccess = () => onOpenChange(false);
+    const onSuccess = () => {
+      haptic("success");
+      onOpenChange(false);
+    };
     const onError = (error: unknown) => toast.error(getErrorMessage(error));
 
     if (isEdit && item) {
@@ -78,44 +102,84 @@ export function InventoryFormDialog({ familyId, open, onOpenChange, item }: Prop
     }
   }
 
+  function changeQuantity(delta: number) {
+    setQuantity((current) => Math.max(0, current + delta));
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifier le produit" : "Ajouter un produit"}</DialogTitle>
-          <DialogDescription>Renseigne les informations du produit.</DialogDescription>
+          <DialogDescription>
+            Un nom suffit — la catégorie, l&apos;emplacement et la date restent optionnels.
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-3">
+        <form onSubmit={handleSubmit} className="grid gap-5">
+          {/* Nom : le champ principal, très proéminent, autofocus. */}
           <div className="grid gap-1.5">
-            <Label htmlFor="inv-name">Nom</Label>
+            <Label
+              htmlFor="inv-name"
+              className="text-xs font-semibold tracking-wide uppercase text-muted-foreground"
+            >
+              Nom du produit
+            </Label>
             <Input
               id="inv-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Ex. Lait demi-écrémé"
+              placeholder="Ex. Œufs"
               autoFocus
+              className="h-11 text-[15px]"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="inv-qty">Quantité</Label>
-              <Input
-                id="inv-qty"
-                type="number"
-                min={0}
-                max={99999}
-                value={quantity}
-                onChange={(event) => setQuantity(Math.max(0, Number(event.target.value) || 0))}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="inv-unit">Unité</Label>
+          {/* Quantité + unité : essentiels mais compacts, façon stepper. */}
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              Quantité
+            </Label>
+            <div className="flex items-center gap-2">
+              <div className="bg-muted/60 flex items-center rounded-xl p-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 rounded-lg text-lg"
+                  onClick={() => changeQuantity(-1)}
+                  disabled={quantity <= 0}
+                  aria-label="Diminuer"
+                >
+                  −
+                </Button>
+                <Input
+                  id="inv-qty"
+                  type="number"
+                  min={0}
+                  max={99999}
+                  value={quantity}
+                  onChange={(event) => setQuantity(Math.max(0, Number(event.target.value) || 0))}
+                  className="h-9 w-14 border-0 bg-transparent text-center text-[15px] font-medium tabular-nums shadow-none focus-visible:ring-0"
+                  aria-label="Quantité"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 rounded-lg text-lg"
+                  onClick={() => changeQuantity(1)}
+                  aria-label="Augmenter"
+                >
+                  +
+                </Button>
+              </div>
               <NativeSelect
                 id="inv-unit"
                 value={unit}
                 onChange={(event) => setUnit(event.target.value)}
+                className="h-11 flex-1"
+                aria-label="Unité"
               >
                 {UNITS.map((u) => (
                   <option key={u.value} value={u.value}>
@@ -126,51 +190,57 @@ export function InventoryFormDialog({ familyId, open, onOpenChange, item }: Prop
             </div>
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="inv-cat">Catégorie</Label>
-            <NativeSelect
-              id="inv-cat"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-            >
-              {PRODUCT_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </NativeSelect>
+          {/* Détails secondaires : visuellement retrait, dans une sous-carte muted. */}
+          <div className="bg-muted/40 flex flex-col gap-3 rounded-2xl p-3">
+            <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
+              Détails
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <DetailField id="inv-cat" label="Catégorie">
+                <NativeSelect
+                  id="inv-cat"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  className="h-10"
+                >
+                  {PRODUCT_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </DetailField>
+              <DetailField id="inv-loc" label="Emplacement">
+                <NativeSelect
+                  id="inv-loc"
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                  className="h-10"
+                >
+                  {STORAGE_LOCATIONS.map((l) => (
+                    <option key={l.value} value={l.value}>
+                      {l.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </DetailField>
+            </div>
+            <DetailField id="inv-exp" label="Date de péremption · optionnelle">
+              <Input
+                id="inv-exp"
+                type="date"
+                value={expiryDate}
+                onChange={(event) => setExpiryDate(event.target.value)}
+                className="h-10"
+              />
+            </DetailField>
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="inv-loc">Emplacement</Label>
-            <NativeSelect
-              id="inv-loc"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-            >
-              {STORAGE_LOCATIONS.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label htmlFor="inv-exp">Date de péremption (optionnel)</Label>
-            <Input
-              id="inv-exp"
-              type="date"
-              value={expiryDate}
-              onChange={(event) => setExpiryDate(event.target.value)}
-            />
-          </div>
-
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="mt-1 flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Annuler
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending} className="min-w-[100px]">
               {pending ? "Enregistrement…" : isEdit ? "Enregistrer" : "Ajouter"}
             </Button>
           </div>

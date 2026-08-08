@@ -9,7 +9,9 @@ export const recipeIngredientSchema = z.object({
 export const recipeSchema = z.object({
   name: z.string().trim().min(1, "Nom requis").max(120, "120 caractères maximum"),
   servings: z.number().int().min(1, "Au moins 1 personne").max(50),
-  ingredients: z.array(recipeIngredientSchema).min(1, "Ajoute au moins un ingrédient"),
+  // Ingrédients optionnels : on peut créer un contenant "Pâtes au steak" et
+  // compléter plus tard, ou laisser l'IA le faire à la demande.
+  ingredients: z.array(recipeIngredientSchema).default([]),
 });
 
 export type RecipeIngredientInput = z.infer<typeof recipeIngredientSchema>;

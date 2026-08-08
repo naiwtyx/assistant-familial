@@ -70,14 +70,17 @@ export async function createRecipe(familyId: string, input: RecipeInput): Promis
     .single();
   if (error) throw error;
 
-  const { error: ingredientsError } = await supabase
-    .from("recipe_ingredients")
-    .insert(ingredientRows(recipe.id, input));
+  // Ingrédients optionnels : n'insère que s'il y en a.
+  if (input.ingredients.length > 0) {
+    const { error: ingredientsError } = await supabase
+      .from("recipe_ingredients")
+      .insert(ingredientRows(recipe.id, input));
 
-  if (ingredientsError) {
-    // Pas de transaction côté client : on annule la recette pour ne pas laisser d'orphelin.
-    await supabase.from("recipes").delete().eq("id", recipe.id);
-    throw ingredientsError;
+    if (ingredientsError) {
+      // Pas de transaction côté client : on annule la recette pour ne pas laisser d'orphelin.
+      await supabase.from("recipes").delete().eq("id", recipe.id);
+      throw ingredientsError;
+    }
   }
 
   void logActivity(familyId, "recipe_add", { name: input.name });
@@ -105,10 +108,12 @@ export async function updateRecipe(
     .eq("recipe_id", recipeId);
   if (deleteError) throw deleteError;
 
-  const { error: insertError } = await supabase
-    .from("recipe_ingredients")
-    .insert(ingredientRows(recipeId, input));
-  if (insertError) throw insertError;
+  if (input.ingredients.length > 0) {
+    const { error: insertError } = await supabase
+      .from("recipe_ingredients")
+      .insert(ingredientRows(recipeId, input));
+    if (insertError) throw insertError;
+  }
 
   return recipe;
 }

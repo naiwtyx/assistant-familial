@@ -89,7 +89,8 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "createRecipe",
-      description: "Crée une nouvelle recette avec ses ingrédients.",
+      description:
+        "Crée une nouvelle recette. Les ingrédients sont optionnels : l'utilisateur peut créer une recette au titre seul et compléter plus tard.",
       parameters: {
         type: "object",
         properties: {
@@ -97,7 +98,7 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
           servings: { type: "number", description: "Nombre de personnes (4 par défaut)" },
           ingredients: {
             type: "array",
-            description: "Liste des ingrédients",
+            description: "Liste des ingrédients (optionnel — laisser vide pour créer sans)",
             items: {
               type: "object",
               properties: {
@@ -109,7 +110,7 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
             },
           },
         },
-        required: ["name", "ingredients"],
+        required: ["name"],
       },
     },
   },
@@ -467,9 +468,7 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
         })
         .filter((ingredient) => ingredient.name.length > 0);
 
-      if (!name || ingredients.length === 0) {
-        return "Il faut au moins un nom de recette et un ingrédient.";
-      }
+      if (!name) return "Nom de recette manquant.";
 
       const { data: recipe, error } = await supabase
         .from("recipes")
@@ -478,20 +477,24 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
         .single();
       if (error) throw error;
 
-      const rows = ingredients.map((ingredient, index) => ({
-        recipe_id: recipe.id,
-        name: ingredient.name,
-        quantity: ingredient.quantity,
-        unit: ingredient.unit,
-        sort_order: index,
-      }));
-      const { error: ingredientsError } = await supabase.from("recipe_ingredients").insert(rows);
-      if (ingredientsError) {
-        await supabase.from("recipes").delete().eq("id", recipe.id);
-        throw ingredientsError;
+      if (ingredients.length > 0) {
+        const rows = ingredients.map((ingredient, index) => ({
+          recipe_id: recipe.id,
+          name: ingredient.name,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit,
+          sort_order: index,
+        }));
+        const { error: ingredientsError } = await supabase.from("recipe_ingredients").insert(rows);
+        if (ingredientsError) {
+          await supabase.from("recipes").delete().eq("id", recipe.id);
+          throw ingredientsError;
+        }
       }
 
-      return `Recette « ${name} » créée pour ${servings} personnes (${ingredients.length} ingrédient(s)).`;
+      return ingredients.length > 0
+        ? `Recette « ${name} » créée pour ${servings} personnes (${ingredients.length} ingrédient(s)).`
+        : `Recette « ${name} » créée pour ${servings} personnes (sans ingrédients — à compléter plus tard).`;
     },
 
     getMealPlan: async (args) => {

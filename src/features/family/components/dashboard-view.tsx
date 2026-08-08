@@ -20,7 +20,6 @@ import { useMemo } from "react";
 
 import { Section } from "@/components/shared/section";
 import { AskBar } from "@/features/assistant/components/ask-bar";
-import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import { useChores } from "@/features/chores/hooks/use-chores";
 import { useEvents } from "@/features/events/hooks/use-events";
 import { useInventory } from "@/features/inventory/hooks/use-inventory";
@@ -31,9 +30,7 @@ import { useShoppingList } from "@/features/shopping/hooks/use-shopping-list";
 import { deterministicDigestMessage, type DigestFacts } from "@/lib/ai/digest-message";
 import { cn } from "@/lib/utils";
 
-import { useMyMembership } from "./family-provider";
-import { FamilyMembersList } from "./family-members-list";
-import { InviteCard } from "./invite-card";
+import { useActiveFamily } from "./family-provider";
 
 type Shortcut = { href: string; label: string; icon: LucideIcon };
 const SHORTCUTS: Shortcut[] = [
@@ -44,11 +41,6 @@ const SHORTCUTS: Shortcut[] = [
   { href: "/idees", label: "Idées", icon: Lightbulb },
   { href: "/activite", label: "Activité", icon: History },
 ];
-
-function firstName(displayName: string | null): string {
-  if (!displayName) return "";
-  return displayName.trim().split(/\s+/)[0] ?? "";
-}
 
 function greeting(hour: number): string {
   if (hour < 5) return "Bonne nuit";
@@ -67,7 +59,7 @@ function StatValue({ value, unit }: { value: number | string; unit?: string }) {
 }
 
 export function DashboardView() {
-  const { family, displayName, email } = useMyMembership();
+  const family = useActiveFamily();
 
   const now = new Date();
   const today = toISODate(now);
@@ -77,7 +69,6 @@ export function DashboardView() {
     month: "long",
   });
   const salutation = greeting(now.getHours());
-  const name = firstName(displayName);
 
   const { data: shopping } = useShoppingList(family.id);
   const { data: inventory } = useInventory(family.id);
@@ -150,22 +141,15 @@ export function DashboardView() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-7 p-5 pb-8">
-      {/* 1. Bonjour — situer + personnaliser. Le prénom + l'emoji donnent le ton. */}
-      <header className="motion-in flex items-start justify-between gap-4 pt-2">
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-[11px] font-medium tracking-[0.1em] uppercase">
-            {dateLabel}
-          </p>
-          <h1 className="font-heading mt-1 truncate text-[26px] leading-tight font-semibold tracking-tight">
-            {salutation}
-            {name ? `, ${name}` : ""} <span aria-hidden>👋</span>
-          </h1>
-          <p className="text-muted-foreground mt-0.5 truncate text-xs">
-            {family.name}
-            {email ? ` · ${email}` : ""}
-          </p>
-        </div>
-        <SignOutButton />
+      {/* 1. Date + salutation neutre. Focus maison, pas profil : ni prénom, ni email,
+          ni nom famille — les infos compte vivent dans Réglages. */}
+      <header className="motion-in pt-2">
+        <p className="text-muted-foreground text-[11px] font-medium tracking-[0.1em] uppercase">
+          {dateLabel}
+        </p>
+        <h1 className="font-heading mt-1 text-[26px] leading-tight font-semibold tracking-tight">
+          {salutation} <span aria-hidden>👋</span>
+        </h1>
       </header>
 
       {/* 2. Suggestion IA — la première chose "intelligente" que voit l'utilisateur. */}
@@ -176,12 +160,12 @@ export function DashboardView() {
         <div className="flex items-center gap-2">
           <Sparkles className="text-primary size-4" strokeWidth={2} aria-hidden />
           <span className="text-primary text-[11px] font-semibold tracking-[0.1em] uppercase">
-            {suggestionIsIdle ? "Assistant" : "Aperçu du jour"}
+            {suggestionIsIdle ? "Tout est sous contrôle ✨" : "Aperçu du jour"}
           </span>
         </div>
         <p className="text-[15px] leading-relaxed text-balance">
           {suggestionIsIdle
-            ? "Tout est calme aujourd'hui. Ouvre l'assistant pour planifier, ajouter ou réorganiser en langage naturel."
+            ? "Rien d'urgent aujourd'hui. Je reste disponible si tu veux organiser quelque chose."
             : suggestion}
         </p>
         <span className="text-primary mt-1 inline-flex items-center gap-1 text-xs font-medium">
@@ -275,27 +259,9 @@ export function DashboardView() {
         ) : null}
       </Section>
 
-      {/* 5. Courses & Inventaire — les 2 chiffres qui pilotent la maison. */}
-      <Section title="La maison en un coup d'œil" className="motion-in-delay-3">
-        <div className="grid grid-cols-2 gap-3">
-          <StatTile
-            href="/courses"
-            icon={ShoppingCart}
-            value={shoppingToBuy}
-            unit={shoppingToBuy > 1 ? "articles" : "article"}
-            caption="à acheter"
-          />
-          <StatTile
-            href="/inventaire"
-            icon={Package}
-            value={inventoryCount}
-            unit={inventoryCount > 1 ? "produits" : "produit"}
-            caption="en stock"
-          />
-        </div>
-      </Section>
-
-      {/* 6. Raccourcis — tout le reste, discret. */}
+      {/* 5. Accès rapides — juste avant "La maison" pour ramener les actions
+          fréquentes vers le haut du scroll. Courses/Inventaire n'y figurent
+          pas (déjà dans la bottom-nav). */}
       <Section title="Accès rapides" className="motion-in-delay-3">
         <div className="grid grid-cols-3 gap-2">
           {SHORTCUTS.map(({ href, label, icon: Icon }) => (
@@ -314,10 +280,24 @@ export function DashboardView() {
         </div>
       </Section>
 
-      {/* 7. Famille — membres + invitations, tout en bas. */}
-      <Section title="Famille" className="motion-in-delay-4">
-        <FamilyMembersList familyId={family.id} />
-        <InviteCard familyId={family.id} />
+      {/* 6. La maison en un coup d'œil — les 2 chiffres qui la pilotent. */}
+      <Section title="La maison en un coup d'œil" className="motion-in-delay-4">
+        <div className="grid grid-cols-2 gap-3">
+          <StatTile
+            href="/courses"
+            icon={ShoppingCart}
+            value={shoppingToBuy}
+            unit={shoppingToBuy > 1 ? "articles" : "article"}
+            caption="à acheter"
+          />
+          <StatTile
+            href="/inventaire"
+            icon={Package}
+            value={inventoryCount}
+            unit={inventoryCount > 1 ? "produits" : "produit"}
+            caption="en stock"
+          />
+        </div>
       </Section>
     </main>
   );
