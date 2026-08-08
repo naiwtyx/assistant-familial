@@ -1,7 +1,9 @@
 // Service Worker — notifications push + cache hors ligne de l'Assistant Familial.
 /* global self, caches, fetch, URL */
 
-const CACHE = "af-cache-v1";
+// Bumper cette version force l'`activate` à purger l'ancien cache : indispensable
+// pour que les mises à jour se propagent sur les PWA installées (surtout iOS).
+const CACHE = "af-cache-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
