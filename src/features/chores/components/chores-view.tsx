@@ -1,6 +1,16 @@
 "use client";
 
-import { CheckSquare, ChevronDown, Pencil, Plus, Repeat, Trash2, Trophy, Users } from "lucide-react";
+import {
+  CheckSquare,
+  ChevronDown,
+  Pencil,
+  Plus,
+  Repeat,
+  SlidersHorizontal,
+  Trash2,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -49,6 +59,7 @@ export function ChoresView() {
   const removeChore = useDeleteChore(family.id);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [title, setTitle] = useState("");
   const [assignees, setAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
@@ -98,6 +109,7 @@ export function ChoresView() {
     setDueDate("");
     setPoints(1);
     setRecurrence("");
+    setShowDetails(false);
   }
 
   function submit(event: React.FormEvent) {
@@ -194,7 +206,7 @@ export function ChoresView() {
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Nettoyer la cuisine, sortir les poubelles…"
                 maxLength={120}
-                className="h-11 text-[15px]"
+                className="h-11 text-[15px] scroll-mt-24 scroll-mb-32"
               />
             </div>
 
@@ -207,58 +219,71 @@ export function ChoresView() {
               </div>
             ) : null}
 
-            <div className="bg-muted/40 flex flex-col gap-3 rounded-xl p-3">
-              <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
-                Détails
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="chore-date" className="text-muted-foreground text-[11px] font-medium">
-                    Échéance · optionnel
-                  </Label>
-                  <Input
-                    id="chore-date"
-                    type="date"
-                    value={dueDate}
-                    min={TODAY}
-                    onChange={(event) => setDueDate(event.target.value)}
-                    className="h-10"
-                  />
+            {/* Détails cachés par défaut : garde le form court au-dessus du
+                clavier. Déplier à la demande via "Plus d'options". */}
+            {showDetails ? (
+              <div className="bg-muted/40 flex flex-col gap-3 rounded-xl p-3">
+                <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
+                  Détails
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="chore-date" className="text-muted-foreground text-[11px] font-medium">
+                      Échéance · optionnel
+                    </Label>
+                    <Input
+                      id="chore-date"
+                      type="date"
+                      value={dueDate}
+                      min={TODAY}
+                      onChange={(event) => setDueDate(event.target.value)}
+                      className="h-10 scroll-mt-24 scroll-mb-32"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="chore-points" className="text-muted-foreground text-[11px] font-medium">
+                      Points
+                    </Label>
+                    <NativeSelect
+                      id="chore-points"
+                      value={points}
+                      onChange={(event) => setPoints(Number(event.target.value))}
+                      className="h-10"
+                    >
+                      {POINTS_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {value} pt{value > 1 ? "s" : ""}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </div>
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="chore-points" className="text-muted-foreground text-[11px] font-medium">
-                    Points
+                  <Label htmlFor="chore-rec" className="text-muted-foreground text-[11px] font-medium">
+                    Répétition
                   </Label>
                   <NativeSelect
-                    id="chore-points"
-                    value={points}
-                    onChange={(event) => setPoints(Number(event.target.value))}
+                    id="chore-rec"
+                    value={recurrence}
+                    onChange={(event) => setRecurrence(event.target.value as "" | ChoreRecurrence)}
                     className="h-10"
                   >
-                    {POINTS_OPTIONS.map((value) => (
-                      <option key={value} value={value}>
-                        {value} pt{value > 1 ? "s" : ""}
-                      </option>
-                    ))}
+                    <option value="">Ne pas répéter</option>
+                    <option value="daily">Chaque jour</option>
+                    <option value="weekly">Chaque semaine</option>
                   </NativeSelect>
                 </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="chore-rec" className="text-muted-foreground text-[11px] font-medium">
-                  Répétition
-                </Label>
-                <NativeSelect
-                  id="chore-rec"
-                  value={recurrence}
-                  onChange={(event) => setRecurrence(event.target.value as "" | ChoreRecurrence)}
-                  className="h-10"
-                >
-                  <option value="">Ne pas répéter</option>
-                  <option value="daily">Chaque jour</option>
-                  <option value="weekly">Chaque semaine</option>
-                </NativeSelect>
-              </div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowDetails(true)}
+                className="text-muted-foreground hover:text-foreground -mt-1 flex items-center gap-1.5 self-start text-xs transition-colors"
+              >
+                <SlidersHorizontal className="size-3.5" strokeWidth={1.75} />
+                Plus d&apos;options
+              </button>
+            )}
 
             <Button
               type="submit"
@@ -295,7 +320,7 @@ export function ChoresView() {
         <ListSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger les tâches.</p>
-      ) : chores && chores.length === 0 ? (
+      ) : chores && chores.length === 0 && !isOpen ? (
         <EmptyState
           icon={CheckSquare}
           title="Aucune tâche"
@@ -307,7 +332,7 @@ export function ChoresView() {
             </Button>
           }
         />
-      ) : (
+      ) : chores && chores.length === 0 ? null : (
         <ul className="motion-in-delay-3 bg-card shadow-soft flex flex-col rounded-2xl p-2">
           {chores?.map((chore) => {
             const overdue = !chore.done && chore.due_date != null && chore.due_date < TODAY;

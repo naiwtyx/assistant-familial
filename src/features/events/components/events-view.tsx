@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, ChevronDown, Plus, Repeat, Trash2 } from "lucide-react";
+import { CalendarClock, ChevronDown, Plus, Repeat, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -51,6 +51,7 @@ export function EventsView() {
   const removeEvent = useDeleteEvent(family.id);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -76,6 +77,7 @@ export function EventsView() {
     setTime("");
     setNote("");
     setRecurrence("");
+    setShowDetails(false);
   }
 
   function submit(event: React.FormEvent) {
@@ -165,7 +167,7 @@ export function EventsView() {
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Sortie au parc, rendez-vous…"
                 maxLength={120}
-                className="h-11 text-[15px]"
+                className="h-11 text-[15px] scroll-mt-24 scroll-mb-32"
               />
             </div>
 
@@ -183,7 +185,7 @@ export function EventsView() {
                   value={date}
                   min={TODAY}
                   onChange={(event) => setDate(event.target.value)}
-                  className="h-11 text-[15px]"
+                  className="h-11 text-[15px] scroll-mt-24 scroll-mb-32"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -198,44 +200,57 @@ export function EventsView() {
                   type="time"
                   value={time}
                   onChange={(event) => setTime(event.target.value)}
-                  className="h-11 text-[15px] tabular-nums"
+                  className="h-11 text-[15px] tabular-nums scroll-mt-24 scroll-mb-32"
                 />
               </div>
             </div>
 
-            <div className="bg-muted/40 flex flex-col gap-3 rounded-xl p-3">
-              <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
-                Détails
-              </p>
-              <div className="grid gap-1.5">
-                <Label htmlFor="ev-rec" className="text-muted-foreground text-[11px] font-medium">
-                  Répétition
-                </Label>
-                <NativeSelect
-                  id="ev-rec"
-                  value={recurrence}
-                  onChange={(event) => setRecurrence(event.target.value as "" | EventRecurrence)}
-                  className="h-10"
-                >
-                  <option value="">Ne pas répéter</option>
-                  <option value="weekly">Chaque semaine</option>
-                  <option value="monthly">Chaque mois</option>
-                </NativeSelect>
+            {/* Détails cachés par défaut : sur mobile un form plus court =
+                un form entier au-dessus du clavier. On déplie à la demande. */}
+            {showDetails ? (
+              <div className="bg-muted/40 flex flex-col gap-3 rounded-xl p-3">
+                <p className="text-muted-foreground text-[10.5px] font-semibold tracking-[0.08em] uppercase">
+                  Détails
+                </p>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ev-rec" className="text-muted-foreground text-[11px] font-medium">
+                    Répétition
+                  </Label>
+                  <NativeSelect
+                    id="ev-rec"
+                    value={recurrence}
+                    onChange={(event) => setRecurrence(event.target.value as "" | EventRecurrence)}
+                    className="h-10"
+                  >
+                    <option value="">Ne pas répéter</option>
+                    <option value="weekly">Chaque semaine</option>
+                    <option value="monthly">Chaque mois</option>
+                  </NativeSelect>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ev-note" className="text-muted-foreground text-[11px] font-medium">
+                    Note · optionnel
+                  </Label>
+                  <Input
+                    id="ev-note"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="Ex. Prévoir un pique-nique"
+                    maxLength={300}
+                    className="h-10 scroll-mt-24 scroll-mb-32"
+                  />
+                </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="ev-note" className="text-muted-foreground text-[11px] font-medium">
-                  Note · optionnel
-                </Label>
-                <Input
-                  id="ev-note"
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="Ex. Prévoir un pique-nique"
-                  maxLength={300}
-                  className="h-10"
-                />
-              </div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowDetails(true)}
+                className="text-muted-foreground hover:text-foreground -mt-1 flex items-center gap-1.5 self-start text-xs transition-colors"
+              >
+                <SlidersHorizontal className="size-3.5" strokeWidth={1.75} />
+                Plus d&apos;options
+              </button>
+            )}
 
             <Button
               type="submit"
@@ -270,7 +285,7 @@ export function EventsView() {
         <FeedSkeleton />
       ) : isError ? (
         <p className="text-destructive text-sm">Impossible de charger l&apos;agenda.</p>
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && !isOpen ? (
         <EmptyState
           icon={CalendarClock}
           title="Aucun événement à venir"
@@ -282,7 +297,7 @@ export function EventsView() {
             </Button>
           }
         />
-      ) : (
+      ) : groups.length === 0 ? null : (
         <div className="motion-in-delay-2 flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.date}>
