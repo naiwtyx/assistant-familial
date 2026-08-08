@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { canMemberUseAi } from "@/features/family/lib/ai-access";
 import { buildProposedAction, writeToolToActionType, type ProposedAction } from "@/lib/ai/actions";
-import { buildExecutors, tools } from "@/lib/ai/build-tools";
+import { buildExecutors, selectTools } from "@/lib/ai/build-tools";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { createClient } from "@/lib/supabase/server";
 
@@ -137,6 +137,12 @@ export async function POST(request: Request) {
   const groq = new Groq({ apiKey });
   const executors = buildExecutors(supabase, familyId, user.id);
   const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+
+  // Ne transmet à l'IA que les outils pertinents pour la demande courante
+  // (fiabilité du tool-calling). Toutes les capacités restent disponibles.
+  const lastUserText =
+    [...parsed.data.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const tools = selectTools(lastUserText);
 
   const now = new Date();
   const todayLabel = now.toLocaleDateString("fr-FR", {

@@ -361,6 +361,68 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
+/**
+ * Routage d'outils : plutôt que d'envoyer les 24 outils à chaque requête (ce
+ * qui fait rater le tool-calling de Llama), on ne transmet que ceux pertinents
+ * pour la demande. L'assistant garde TOUTES ses capacités — on lui évite juste
+ * de choisir parmi trop d'options d'un coup (plus fiable + plus rapide).
+ */
+const TOOL_CATEGORIES: Record<string, string[]> = {
+  shopping: ["getShoppingList", "addShoppingItem", "removeShoppingItem"],
+  inventory: ["getInventory", "updateInventory"],
+  recipes: ["getRecipes", "createRecipe"],
+  meals: ["getMealPlan", "planMeal", "clearMeal", "planWeek"],
+  chores: ["getChores", "addChore", "setChoreDone", "deleteChore", "reassignChore"],
+  events: ["getEvents", "addEvent", "deleteEvent", "updateEvent"],
+  ideas: ["getIdeas", "addIdea"],
+  budget: ["getMonthlySpending"],
+  family: ["getFamilyMembers"],
+};
+
+// Mots-clés (sans accents — comparés au texte normalisé) qui activent une
+// catégorie. Substring : « cuisin » attrape cuisiner/cuisine.
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  shopping: ["cours", "achet", "liste", "panier", "article"],
+  inventory: ["stock", "inventaire", "frigo", "placard", "perim", "expire", "reserve", "congel"],
+  recipes: ["recette", "cuisin", "plat ", "ingredient"],
+  meals: ["repas", "diner", "dejeuner", "midi", "soir", "manger", "menu", "planifi", "planning", "semaine"],
+  chores: ["tache", "corvee", "menage", "classement", "point", "assign", "poubelle", "vaisselle", "ranger"],
+  events: ["agenda", "evenement", "rendez", "rdv", "calendrier", "sortie", "activite", "anniversaire"],
+  ideas: ["idee", "suggestion", "envie"],
+  budget: ["budget", "depense", "argent", "cout", "prix", "ticket", "euro"],
+};
+
+const DEFAULT_CATEGORIES = ["shopping", "inventory", "recipes", "meals", "chores", "events", "family"];
+
+/** Sélectionne les outils pertinents pour un message (garde toutes les capacités). */
+export function selectTools(userText: string): Groq.Chat.Completions.ChatCompletionTool[] {
+  const text = normalizeName(userText);
+  const matched = new Set<string>();
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((keyword) => text.includes(keyword))) matched.add(category);
+  }
+
+  // Co-activation : les modules "cuisine" se raisonnent ensemble (recettes ↔
+  // stock ↔ repas), les courses ont besoin du stock (éviter les doublons),
+  // les tâches ont besoin des prénoms pour l'assignation.
+  if (matched.has("recipes") || matched.has("meals")) {
+    matched.add("recipes");
+    matched.add("meals");
+    matched.add("inventory");
+  }
+  if (matched.has("shopping")) matched.add("inventory");
+  if (matched.has("chores")) matched.add("family");
+
+  // Rien de reconnu (salutation, question vague) -> cœur du quotidien.
+  const categories = matched.size > 0 ? matched : new Set(DEFAULT_CATEGORIES);
+
+  const names = new Set<string>();
+  for (const category of categories) {
+    for (const name of TOOL_CATEGORIES[category] ?? []) names.add(name);
+  }
+  return tools.filter((tool) => tool.function?.name != null && names.has(tool.function.name));
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 function asSlot(value: unknown): "midi" | "soir" | null {
   return value === "midi" || value === "soir" ? value : null;
