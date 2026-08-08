@@ -1,9 +1,9 @@
-// Service Worker — notifications push + cache hors ligne de l'Assistant Familial.
+// Service Worker — notifications push + repli hors ligne de l'Assistant Familial.
 /* global self, caches, fetch, URL */
 
-// Bumper cette version force l'`activate` à purger l'ancien cache : indispensable
-// pour que les mises à jour se propagent sur les PWA installées (surtout iOS).
-const CACHE = "af-cache-v2";
+// Bumper cette version force l'`activate` à purger l'ancien cache — indispensable
+// pour sortir d'un cache corrompu sur les PWA installées (surtout iOS).
+const CACHE = "af-cache-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -12,7 +12,8 @@ self.addEventListener("install", () => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      // Nettoie les anciennes versions du cache.
+      // Purge TOUTES les anciennes versions du cache (y compris un cache
+      // corrompu qui aurait stocké un chunk raté).
       const keys = await caches.keys();
       await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
       await self.clients.claim();
@@ -21,10 +22,16 @@ self.addEventListener("activate", (event) => {
 });
 
 /**
- * Stratégie de cache :
- * - navigations : réseau d'abord (frais), repli sur le cache si hors ligne ;
- * - assets statiques (_next, icônes, manifest) : cache d'abord (immuables) ;
- * - API et domaines externes (Supabase…) : jamais mis en cache.
+ * Stratégie volontairement MINIMALE pour éviter toute une classe de bugs de
+ * cache PWA (chunk périmé/raté servi en boucle -> crash au chargement) :
+ *
+ * - On ne met JAMAIS en cache les assets `/_next/static/*` : ils sont déjà
+ *   immuables (hash dans le nom) et gérés parfaitement par le cache HTTP du
+ *   navigateur. Les mettre en cache ici n'apporte rien et casse tout si une
+ *   réponse ratée est stockée.
+ * - Navigations : réseau d'abord, avec repli sur la dernière page en cache
+ *   uniquement si on est hors ligne. On ne met en cache QUE les réponses OK.
+ * - API et domaines externes : jamais interceptés.
  */
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -33,38 +40,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/_next/")) return; // laissé au cache HTTP du navigateur
 
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
         .catch(async () => {
           const cached = await caches.match(request);
           return cached || caches.match("/dashboard");
         }),
-    );
-    return;
-  }
-
-  const isStatic =
-    url.pathname.startsWith("/_next/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/manifest.webmanifest";
-  if (isStatic) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((response) => {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-            return response;
-          }),
-      ),
     );
   }
 });
