@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Send, Sparkles, Undo2, X } from "lucide-react";
+import { Check, Loader2, Send, ShoppingCart, Sparkles, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -23,10 +23,10 @@ import { cn } from "@/lib/utils";
 
 // Exemples orientés ACTION (section 11) : montrent ce que l'assistant sait faire.
 const SUGGESTIONS = [
+  "Organise ma semaine",
   "Que puis-je cuisiner ce soir ?",
   "Ajoute du lait et des œufs aux courses",
   "Quelles tâches sont en retard ?",
-  "Planifie le dîner de demain",
 ];
 
 type UiMessage = {
@@ -37,6 +37,7 @@ type UiMessage = {
   dismissed?: boolean;
   busy?: boolean;
   undone?: boolean;
+  followupDone?: boolean; // ingrédients manquants ajoutés aux courses
 };
 
 export function AssistantView() {
@@ -141,6 +142,21 @@ export function AssistantView() {
     }
   }
 
+  async function addFollowup(index: number, actions: ProposedAction[]) {
+    patchMessage(index, { busy: true });
+    try {
+      const results = await executeActions(actions);
+      const ok = results.filter((r) => r.ok).length;
+      haptic(ok > 0 ? "success" : "warning");
+      patchMessage(index, { busy: false, followupDone: true });
+      void queryClient.invalidateQueries();
+      if (ok > 0) toast.success(ok > 1 ? `${ok} articles ajoutés aux courses` : "Ajouté aux courses");
+    } catch (error) {
+      patchMessage(index, { busy: false });
+      toast.error(getErrorMessage(error));
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-8.5rem)] w-full max-w-md flex-col p-4">
       <header className="mb-3">
@@ -196,13 +212,15 @@ export function AssistantView() {
                 />
               ) : null}
 
-              {/* Carte de feedback : ce qui a été fait + Annuler. */}
+              {/* Carte de feedback : ce qui a été fait + Annuler + suite éventuelle. */}
               {message.executed ? (
                 <ActionFeedback
                   executed={message.executed}
                   undone={message.undone ?? false}
                   busy={message.busy ?? false}
+                  followupDone={message.followupDone ?? false}
                   onUndo={() => undo(index, message.executed!)}
+                  onFollowup={(actions) => addFollowup(index, actions)}
                 />
               ) : null}
             </div>
@@ -263,14 +281,18 @@ function ActionProposal({
           {actions.length > 1 ? `${actions.length} actions proposées` : "Action proposée"}
         </span>
       </div>
-      <ul className="flex flex-col gap-1.5">
-        {actions.map((action) => (
-          <li key={action.id} className="flex items-start gap-2 text-[13.5px]">
-            <span className="text-primary mt-1.5 size-1.5 shrink-0 rounded-full bg-current" />
-            {action.label}
-          </li>
-        ))}
-      </ul>
+      {actions.length === 1 && actions[0]!.type === "plan_week" ? (
+        <WeekGrid action={actions[0]!} />
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {actions.map((action) => (
+            <li key={action.id} className="flex items-start gap-2 text-[13.5px]">
+              <span className="text-primary mt-1.5 size-1.5 shrink-0 rounded-full bg-current" />
+              {action.label}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="flex gap-2">
         <Button
           onClick={onConfirm}
@@ -297,14 +319,19 @@ function ActionFeedback({
   executed,
   undone,
   busy,
+  followupDone,
   onUndo,
+  onFollowup,
 }: {
   executed: ExecutedAction[];
   undone: boolean;
   busy: boolean;
+  followupDone: boolean;
   onUndo: () => void;
+  onFollowup: (actions: ProposedAction[]) => void;
 }) {
   const canUndo = !undone && executed.some((r) => r.ok && r.undo);
+  const followup = executed.flatMap((r) => r.followup ?? []);
   return (
     <div className="bg-card shadow-soft flex flex-col gap-2 rounded-2xl p-3.5">
       <ul className="flex flex-col gap-1.5">
@@ -323,6 +350,25 @@ function ActionFeedback({
           </li>
         ))}
       </ul>
+
+      {/* Suite proposée : ajouter les ingrédients manquants aux courses. */}
+      {!undone && !followupDone && followup.length > 0 ? (
+        <Button
+          onClick={() => onFollowup(followup)}
+          disabled={busy}
+          variant="outline"
+          size="sm"
+          className="mt-1 self-start rounded-full"
+        >
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ShoppingCart className="size-3.5" strokeWidth={1.75} />}
+          Ajouter {followup.length} ingrédient{followup.length > 1 ? "s" : ""} manquant
+          {followup.length > 1 ? "s" : ""} aux courses
+        </Button>
+      ) : null}
+      {followupDone ? (
+        <p className="text-emerald-600 dark:text-emerald-400 text-xs">✓ Ingrédients ajoutés aux courses.</p>
+      ) : null}
+
       {undone ? (
         <p className="text-muted-foreground text-xs">Annulé.</p>
       ) : canUndo ? (
@@ -336,6 +382,44 @@ function ActionFeedback({
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" strokeWidth={1.75} />}
           Annuler
         </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Grille de la semaine proposée (7 jours × midi/soir). */
+function WeekGrid({ action }: { action: ProposedAction }) {
+  const slots = Array.isArray(action.params.slots)
+    ? (action.params.slots as { date: string; slot: "midi" | "soir"; recipeName: string }[])
+    : [];
+  const byDate = new Map<string, { midi?: string; soir?: string }>();
+  for (const s of slots) {
+    const day = byDate.get(s.date) ?? {};
+    if (s.slot === "midi") day.midi = s.recipeName;
+    else day.soir = s.recipeName;
+    byDate.set(s.date, day);
+  }
+  const missing = Array.isArray(action.params.missing) ? action.params.missing.length : 0;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {[...byDate.entries()].map(([date, day]) => (
+        <div key={date} className="flex items-baseline gap-2 text-[13px]">
+          <span className="text-muted-foreground w-16 shrink-0 text-[11px] font-medium capitalize">
+            {new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })}
+          </span>
+          <span className="min-w-0 flex-1 truncate">
+            {day.midi ?? "—"}
+            <span className="text-muted-foreground/50 mx-1.5">·</span>
+            {day.soir ?? "—"}
+          </span>
+        </div>
+      ))}
+      {missing > 0 ? (
+        <p className="text-muted-foreground mt-1 text-xs">
+          {missing} ingrédient{missing > 1 ? "s" : ""} manquant{missing > 1 ? "s" : ""} — tu pourras
+          les ajouter aux courses après.
+        </p>
       ) : null}
     </div>
   );

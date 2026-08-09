@@ -17,6 +17,7 @@ export type ExecutedAction = {
   ok: boolean;
   summary: string;
   undo: UndoSpec;
+  followup?: ProposedAction[];
 };
 
 export type AssistantReply = { text: string; actions: ProposedAction[] };

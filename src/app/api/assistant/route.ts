@@ -4,7 +4,9 @@ import { z } from "zod";
 
 import { canMemberUseAi } from "@/features/family/lib/ai-access";
 import { buildProposedAction, writeToolToActionType, type ProposedAction } from "@/lib/ai/actions";
+import { newActionId } from "@/lib/ai/actions-schema";
 import { buildExecutors, selectTools } from "@/lib/ai/build-tools";
+import { computeWeekPlan } from "@/lib/ai/week-plan";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { createClient } from "@/lib/supabase/server";
 
@@ -193,7 +195,36 @@ export async function POST(request: Request) {
         let result: string;
         try {
           const args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
-          if (writeToolToActionType(call.function.name)) {
+          if (call.function.name === "planWeek") {
+            // Cas spécial : « organise ma semaine » -> on CALCULE le planning
+            // (déterministe) et on le PROPOSE, au lieu de l'écrire directement.
+            const startDate =
+              typeof args.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(args.startDate)
+                ? args.startDate
+                : todayIso;
+            const plan = await computeWeekPlan(supabase, familyId, startDate);
+            if ("error" in plan) {
+              result = `Impossible de proposer une semaine : ${plan.error}`;
+            } else {
+              const missingNote =
+                plan.missing.length > 0 ? ` · ${plan.missing.length} ingrédient(s) manquant(s)` : "";
+              const label = `Planifier la semaine (${plan.slots.length} repas${missingNote})`;
+              if (!proposedActions.some((a) => a.type === "plan_week")) {
+                proposedActions.push({
+                  id: newActionId(),
+                  type: "plan_week",
+                  label,
+                  params: {
+                    startDate: plan.startIso,
+                    endIso: plan.endIso,
+                    slots: plan.slots,
+                    missing: plan.missing,
+                  },
+                });
+              }
+              result = `Semaine proposée à l'utilisateur (en attente de confirmation). Ne dis pas qu'elle est planifiée ; annonce brièvement la proposition.`;
+            }
+          } else if (writeToolToActionType(call.function.name)) {
             const built = buildProposedAction(call.function.name, args);
             if (built.ok) {
               const isDuplicate = proposedActions.some((a) => a.label === built.action.label);

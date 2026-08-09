@@ -19,6 +19,7 @@ const ACTION_TYPES = [
   "remove_shopping_item",
   "update_inventory",
   "plan_meal",
+  "plan_week",
   "create_recipe",
   "add_chore",
   "add_event",
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
         );
         results.push(
           outcome.ok
-            ? { id, label, ok: true, summary: outcome.summary, undo: outcome.undo }
+            ? { id, label, ok: true, summary: outcome.summary, undo: outcome.undo, followup: outcome.followup }
             : { id, label, ok: false, summary: outcome.error, undo: null },
         );
       } catch (error) {

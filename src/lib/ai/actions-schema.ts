@@ -9,6 +9,7 @@ export type WriteActionType =
   | "remove_shopping_item"
   | "update_inventory"
   | "plan_meal"
+  | "plan_week"
   | "create_recipe"
   | "add_chore"
   | "add_event"
@@ -30,6 +31,7 @@ export type UndoSpec =
       ids: string[];
     }
   | { kind: "clear_meal"; date: string; slot: "midi" | "soir" }
+  | { kind: "clear_meals"; slots: { date: string; slot: "midi" | "soir" }[] }
   | { kind: "restore_inventory_qty"; id: string; quantity: number }
   | null;
 
@@ -39,6 +41,8 @@ export type ExecutedAction = {
   ok: boolean;
   summary: string;
   undo: UndoSpec;
+  /** Actions proposées EN SUITE de celle-ci (ex. ajouter les ingrédients manquants). */
+  followup?: ProposedAction[];
 };
 
 const WRITE_TOOL_TO_ACTION: Record<string, WriteActionType> = {
@@ -186,5 +190,14 @@ export function buildProposedAction(toolName: string, rawParams: Record<string, 
       if (!content) return { ok: false, error: "Contenu de l'idée manquant." };
       return { ok: true, action: { id: nextId(), type, label: `Ajouter l'idée « ${content} »`, params: { content } } };
     }
+    case "plan_week":
+      // Construit directement par la route (via computeWeekPlan), pas depuis
+      // des paramètres bruts du LLM.
+      return { ok: false, error: "plan_week est construit par le serveur." };
   }
+}
+
+/** Fabrique un id d'action (exposé pour les actions construites côté serveur). */
+export function newActionId(): string {
+  return nextId();
 }

@@ -4,7 +4,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/database.types";
 
-import { asNumber, asSlot, asString, HH_MM, ISO_DATE, type UndoSpec, type WriteActionType } from "./actions-schema";
+import {
+  asNumber,
+  asSlot,
+  asString,
+  buildProposedAction,
+  HH_MM,
+  ISO_DATE,
+  type ProposedAction,
+  type UndoSpec,
+  type WriteActionType,
+} from "./actions-schema";
 
 // Ré-exporte la partie pure pour que les appelants aient un point d'entrée unique.
 export {
@@ -18,7 +28,9 @@ export {
 
 type Db = SupabaseClient<Database>;
 
-type ExecResult = { ok: true; summary: string; undo: UndoSpec } | { ok: false; error: string };
+type ExecResult =
+  | { ok: true; summary: string; undo: UndoSpec; followup?: ProposedAction[] }
+  | { ok: false; error: string };
 
 /**
  * Exécute une action DÉJÀ confirmée. Refait une validation défensive (on ne
@@ -105,6 +117,49 @@ export async function executeAction(
         );
       if (error) throw error;
       return { ok: true, summary: `${recipe.name} planifié (${slot})`, undo: { kind: "clear_meal", date, slot } };
+    }
+    case "plan_week": {
+      const rawSlots = Array.isArray(params.slots) ? params.slots : [];
+      const slots = rawSlots
+        .map((entry) => {
+          const o = entry as Record<string, unknown>;
+          return { date: asString(o.date), slot: asSlot(o.slot), recipeId: asString(o.recipeId) };
+        })
+        .filter(
+          (s): s is { date: string; slot: "midi" | "soir"; recipeId: string } =>
+            ISO_DATE.test(s.date) && s.slot !== null && s.recipeId.length > 0,
+        );
+      if (slots.length === 0) return { ok: false, error: "Aucun repas valide à planifier." };
+
+      const rows = slots.map((s) => ({
+        family_id: familyId,
+        date: s.date,
+        slot: s.slot,
+        recipe_id: s.recipeId,
+        created_by: userId,
+      }));
+      const { error } = await supabase.from("meal_plans").upsert(rows, { onConflict: "family_id,date,slot" });
+      if (error) throw error;
+
+      // Ingrédients manquants -> propositions d'ajout aux courses (2ᵉ confirmation).
+      const rawMissing = Array.isArray(params.missing) ? params.missing : [];
+      const followup: ProposedAction[] = [];
+      for (const entry of rawMissing) {
+        const o = entry as Record<string, unknown>;
+        const built = buildProposedAction("addShoppingItem", {
+          name: asString(o.name),
+          quantity: asNumber(o.quantity, 1),
+          unit: o.unit ?? null,
+        });
+        if (built.ok) followup.push(built.action);
+      }
+
+      return {
+        ok: true,
+        summary: `Semaine planifiée (${slots.length} repas)`,
+        undo: { kind: "clear_meals", slots: slots.map((s) => ({ date: s.date, slot: s.slot })) },
+        followup: followup.length > 0 ? followup : undefined,
+      };
     }
     case "create_recipe": {
       const name = asString(params.name).trim();
@@ -210,6 +265,17 @@ export async function runUndo(supabase: Db, familyId: string, undo: UndoSpec): P
   }
   if (undo.kind === "clear_meal") {
     await supabase.from("meal_plans").delete().eq("family_id", familyId).eq("date", undo.date).eq("slot", undo.slot);
+    return;
+  }
+  if (undo.kind === "clear_meals") {
+    for (const slot of undo.slots) {
+      await supabase
+        .from("meal_plans")
+        .delete()
+        .eq("family_id", familyId)
+        .eq("date", slot.date)
+        .eq("slot", slot.slot);
+    }
     return;
   }
   if (undo.kind === "restore_inventory_qty") {
