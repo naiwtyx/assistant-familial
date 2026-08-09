@@ -158,31 +158,44 @@ export function AssistantView() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-8.5rem)] w-full max-w-md flex-col p-4">
-      <header className="mb-3">
+    // Hauteur bornée = viewport - encoche - réserve de la barre de nav (pb-24 du
+    // layout). Ainsi les messages défilent DANS la zone du milieu et la barre de
+    // saisie se pose juste au-dessus de la navigation (plus derrière).
+    <div className="mx-auto flex h-[calc(100dvh-env(safe-area-inset-top)-6rem)] w-full max-w-md flex-col px-4 pt-3">
+      <header className="mb-2 shrink-0">
         <h1 className="font-heading flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Sparkles className="text-primary size-5" strokeWidth={1.75} />
           Assistant
         </h1>
-        <p className="text-muted-foreground text-sm">
-          Demande, il s&apos;occupe de ta maison — courses, repas, tâches, agenda.
-        </p>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto pb-4">
+      <div className="flex-1 space-y-3 overflow-y-auto pb-3">
         {messages.length === 0 ? (
-          <div className="flex flex-col gap-2 pt-6">
-            <p className="text-muted-foreground text-center text-sm">Essaie par exemple :</p>
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => send(suggestion)}
-                className="bg-card hover:bg-accent/50 shadow-soft rounded-xl px-3.5 py-2.5 text-left text-sm transition-all active:scale-[0.99]"
-              >
-                {suggestion}
-              </button>
-            ))}
+          // État vide centré et invitant (plutôt qu'une liste posée en haut).
+          <div className="flex h-full flex-col items-center justify-center gap-5 px-2 text-center">
+            <div className="bg-ai-gradient shadow-ai flex size-14 items-center justify-center rounded-3xl">
+              <Sparkles className="text-primary size-7" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="font-heading text-[17px] font-semibold">Comment puis-je aider ?</p>
+              <p className="text-muted-foreground mt-1 text-sm text-balance">
+                Demande en langage naturel — je m&apos;occupe des courses, repas, tâches et de
+                l&apos;agenda.
+              </p>
+            </div>
+            <div className="flex w-full flex-col gap-2">
+              {SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => send(suggestion)}
+                  className="bg-card hover:bg-accent/50 shadow-soft flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-[13.5px] transition-all active:scale-[0.99]"
+                >
+                  <Sparkles className="text-primary/70 size-3.5 shrink-0" strokeWidth={2} />
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           messages.map((message, index) => (
@@ -244,17 +257,23 @@ export function AssistantView() {
           event.preventDefault();
           void send(input);
         }}
-        className="bg-background sticky bottom-0 flex gap-2 pt-2"
+        className="border-border/50 bg-background flex shrink-0 items-center gap-2 border-t pt-3 pb-3"
       >
         <Input
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Écris ta demande…"
           disabled={isLoading}
-          className="flex-1"
+          className="h-11 flex-1 rounded-xl"
           autoComplete="off"
         />
-        <Button type="submit" size="icon" disabled={isLoading || !input.trim()} aria-label="Envoyer">
+        <Button
+          type="submit"
+          size="icon"
+          disabled={isLoading || !input.trim()}
+          aria-label="Envoyer"
+          className="size-11 shrink-0 rounded-xl transition-transform active:scale-95"
+        >
           <Send className="size-4" />
         </Button>
       </form>
