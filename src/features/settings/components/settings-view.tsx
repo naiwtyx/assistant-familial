@@ -12,6 +12,7 @@ import { FamilyMembersList } from "@/features/family/components/family-members-l
 import { InviteCard } from "@/features/family/components/invite-card";
 import { ROLE_LABELS, isAuthorized } from "@/features/family/lib/roles";
 import { HouseholdKnowledge } from "@/features/patterns/components/household-knowledge";
+import { PremiumSettings } from "@/features/premium/components/premium-settings";
 
 import { NotificationSettings } from "./notification-settings";
 
@@ -88,9 +89,12 @@ export function SettingsView() {
         </div>
       </Section>
 
-      {/* Ce que l'assistant a appris du foyer (transparence). */}
+      {/* Assistant : offre Budget + ce qu'il a appris du foyer (transparence). */}
       <Section title="Assistant" className="motion-in-delay-2">
-        <HouseholdKnowledge familyId={family.id} />
+        <div className="flex flex-col gap-3">
+          <PremiumSettings />
+          <HouseholdKnowledge familyId={family.id} />
+        </div>
       </Section>
 
       {/* Famille : membres + invitations. Déplacé depuis le dashboard : ce n'est

@@ -3,6 +3,7 @@
 import { Calculator, Check, TriangleAlert } from "lucide-react";
 
 import { useActiveFamily } from "@/features/family/components/family-provider";
+import { useIsPremium } from "@/features/premium/hooks/use-premium";
 import { cn } from "@/lib/utils";
 
 import { useShoppingEstimateContext } from "../hooks/use-budget";
@@ -18,8 +19,11 @@ const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR"
  */
 export function ListEstimateCard({ familyId, itemNames }: { familyId: string; itemNames: string[] }) {
   const family = useActiveFamily();
+  const isPremium = useIsPremium();
   const { data } = useShoppingEstimateContext(familyId);
 
+  // Estimation de liste = Assistant Budget (Premium).
+  if (!isPremium) return null;
   if (!data || data.priceSampleSize < 5 || itemNames.length === 0) return null;
 
   const estimate = estimateList(itemNames, data.priceByName);

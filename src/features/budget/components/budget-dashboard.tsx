@@ -17,7 +17,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { categoryLabel } from "@/config/constants";
-import { useActiveFamily } from "@/features/family/components/family-provider";
+import { useMyMembership } from "@/features/family/components/family-provider";
+import { isAuthorized } from "@/features/family/lib/roles";
+import { PremiumUpsell } from "@/features/premium/components/premium-upsell";
+import { useIsPremium, useSetPremium } from "@/features/premium/hooks/use-premium";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +51,10 @@ const MONTHS = [
 
 export function BudgetDashboard({ familyId }: { familyId: string }) {
   const now = new Date();
-  const family = useActiveFamily();
+  const { family, role } = useMyMembership();
+  const isPremium = useIsPremium();
+  const setPremium = useSetPremium(familyId);
+  const canActivate = isAuthorized(role);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const { data, isLoading } = useMonthlyBudget(familyId, year, month);
@@ -189,7 +195,7 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
               total du mois
               {hasLimit ? ` · plafond ${euro.format(limit)}` : ""}
             </p>
-            {comparison && comparison.changePercent != null ? (
+            {isPremium && comparison && comparison.changePercent != null ? (
               <p
                 className={cn(
                   "mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide",
@@ -241,8 +247,8 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
             </div>
           ) : null}
 
-          {/* Alerte contextuelle (projection / rythme) — priorité visuelle haute. */}
-          {alert ? (
+          {/* Alerte contextuelle (projection / rythme) — priorité visuelle haute. Premium. */}
+          {isPremium && alert ? (
             <div
               className={cn(
                 "flex items-start gap-2.5 rounded-2xl p-3.5",
@@ -323,9 +329,21 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
         </>
       )}
 
+      {/* Assistant Budget (Premium) : sans premium, on propose l'upsell à la
+          place des analyses avancées. */}
+      {!isPremium ? (
+        <div className="border-border/60 border-t pt-4">
+          <PremiumUpsell
+            canActivate={canActivate}
+            pending={setPremium.isPending}
+            onActivate={() => setPremium.mutate(true)}
+          />
+        </div>
+      ) : null}
+
       {/* Tendances récentes (semaine, panier moyen, évolution) — mois courant
-          uniquement, et seulement avec assez de tickets (§ 26). */}
-      {showMetrics && metrics ? (
+          uniquement, et seulement avec assez de tickets (§ 26). Premium. */}
+      {isPremium && showMetrics && metrics ? (
         <div className="border-border/60 flex flex-col gap-4 border-t pt-4">
           <div className="grid grid-cols-2 gap-3">
             <Metric label="Cette semaine" value={euro.format(metrics.thisWeek)} />
