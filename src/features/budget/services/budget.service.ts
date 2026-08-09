@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 
 import { aggregateReceiptItems, type CategoryTotal } from "../lib/aggregate";
 import { compareMonthlySpending, type MonthlyComparison } from "../lib/budget-insights";
+import { buildPriceMap } from "../lib/estimate";
 import { averageBasket, weeklyBuckets, type WeekBucket } from "../lib/metrics";
 
 export type ReceiptItemInput = {
@@ -154,6 +155,43 @@ export async function getBudgetMetrics(familyId: string): Promise<BudgetMetrics>
     averageBasket: averageBasket(receipts),
     receiptCount: receipts.length,
   };
+}
+
+export type ShoppingEstimateContext = {
+  /** nom normalisé -> prix typique observé sur les tickets. */
+  priceByName: Record<string, number>;
+  /** dépense déjà engagée ce mois-ci (lignes de tickets). */
+  spentThisMonth: number;
+  /** nb de produits distincts avec un prix connu (garde-fou d'affichage). */
+  priceSampleSize: number;
+};
+
+/**
+ * Contexte pour estimer le coût d'une liste de courses : table de prix (6
+ * derniers mois) + dépense du mois. Réservé aux parents (RLS) : les autres
+ * membres reçoivent un contexte vide -> l'estimation ne s'affiche pas.
+ */
+export async function getShoppingEstimateContext(familyId: string): Promise<ShoppingEstimateContext> {
+  const supabase = createClient();
+  const since = new Date();
+  since.setMonth(since.getMonth() - 6);
+  const sinceIso = since.toISOString().slice(0, 10);
+  const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+
+  const [historyResult, monthResult] = await Promise.all([
+    supabase
+      .from("receipt_items")
+      .select("name,price")
+      .eq("family_id", familyId)
+      .gte("purchased_at", sinceIso),
+    supabase.from("receipt_items").select("price").eq("family_id", familyId).gte("purchased_at", monthStart),
+  ]);
+  if (historyResult.error) throw historyResult.error;
+
+  const priceByName = buildPriceMap(historyResult.data ?? []);
+  const spentThisMonth = (monthResult.data ?? []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+
+  return { priceByName, spentThisMonth, priceSampleSize: Object.keys(priceByName).length };
 }
 
 /** Compare les dépenses du mois donné (`month` 0-indexé) à celles du mois précédent. */

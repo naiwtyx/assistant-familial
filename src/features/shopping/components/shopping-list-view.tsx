@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
 import { categoryLabel } from "@/config/constants";
+import { ListEstimateCard } from "@/features/budget/components/list-estimate-card";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { isAuthorized } from "@/features/family/lib/roles";
 import { useAddCheckedItemsToInventory, useInventory } from "@/features/inventory/hooks/use-inventory";
@@ -138,6 +139,10 @@ export function ShoppingListView() {
       />
 
       <PageSuggestion text={suggestion} />
+
+      {toBuy.length > 0 ? (
+        <ListEstimateCard familyId={family.id} itemNames={toBuy.map((item) => item.name)} />
+      ) : null}
 
       <AddItemForm familyId={family.id} />
 

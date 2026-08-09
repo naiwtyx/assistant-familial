@@ -6,6 +6,7 @@ import {
   getBudgetMetrics,
   getMonthlyBudget,
   getMonthlyComparison,
+  getShoppingEstimateContext,
   saveReceipt,
   setFamilyBudget,
   type SaveReceiptInput,
@@ -18,6 +19,7 @@ export const budgetKeys = {
   comparison: (familyId: string, year: number, month: number) =>
     ["budget", familyId, year, month, "comparison"] as const,
   metrics: (familyId: string) => ["budget", familyId, "metrics"] as const,
+  estimate: (familyId: string) => ["budget", familyId, "estimate"] as const,
 };
 
 export function useSaveReceipt(familyId: string) {
@@ -48,6 +50,14 @@ export function useBudgetMetrics(familyId: string) {
   return useQuery({
     queryKey: budgetKeys.metrics(familyId),
     queryFn: () => getBudgetMetrics(familyId),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useShoppingEstimateContext(familyId: string) {
+  return useQuery({
+    queryKey: budgetKeys.estimate(familyId),
+    queryFn: () => getShoppingEstimateContext(familyId),
     staleTime: 5 * 60 * 1000,
   });
 }
