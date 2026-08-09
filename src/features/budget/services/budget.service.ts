@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 
 import { aggregateReceiptItems, type CategoryTotal } from "../lib/aggregate";
 import { compareMonthlySpending, type MonthlyComparison } from "../lib/budget-insights";
+import { averageBasket, weeklyBuckets, type WeekBucket } from "../lib/metrics";
 
 export type ReceiptItemInput = {
   name: string;
@@ -102,6 +103,57 @@ async function getMonthlyTotals(
   if (error) throw error;
 
   return aggregateReceiptItems(data);
+}
+
+export type BudgetMetrics = {
+  weeks: WeekBucket[]; // 6 dernières semaines (courante en dernier)
+  thisWeek: number;
+  lastWeek: number;
+  weeklyAverage: number | null; // moyenne des semaines actives, null si < 3
+  averageBasket: number | null; // panier moyen, null si < 3 tickets
+  receiptCount: number; // total de tickets sur la fenêtre (garde-fou données)
+};
+
+/**
+ * Métriques de tendance récentes (indépendantes du mois navigué) : dépenses
+ * hebdomadaires, panier moyen. Réservé aux parents (RLS). Chaque métrique est
+ * `null` si les données sont insuffisantes — on n'affiche pas de faux chiffre.
+ */
+export async function getBudgetMetrics(familyId: string): Promise<BudgetMetrics> {
+  const supabase = createClient();
+  const since = new Date();
+  since.setDate(since.getDate() - 84); // ~12 semaines
+  const sinceIso = since.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("receipts")
+    .select("purchased_at,total")
+    .eq("family_id", familyId)
+    .gte("purchased_at", sinceIso)
+    .order("purchased_at");
+  if (error) throw error;
+
+  const receipts = data ?? [];
+  const weeks = weeklyBuckets(receipts, 6);
+  const thisWeek = weeks[weeks.length - 1]?.total ?? 0;
+  const lastWeek = weeks[weeks.length - 2]?.total ?? 0;
+
+  // Moyenne hebdo = moyenne des semaines COMPLÉTÉES (hors semaine courante)
+  // qui ont eu au moins une dépense. Fiable seulement à partir de 3 semaines.
+  const completed = weeks.slice(0, -1).filter((week) => week.total > 0);
+  const weeklyAverage =
+    completed.length >= 3
+      ? completed.reduce((sum, week) => sum + week.total, 0) / completed.length
+      : null;
+
+  return {
+    weeks,
+    thisWeek,
+    lastWeek,
+    weeklyAverage,
+    averageBasket: averageBasket(receipts),
+    receiptCount: receipts.length,
+  };
 }
 
 /** Compare les dépenses du mois donné (`month` 0-indexé) à celles du mois précédent. */
