@@ -42,8 +42,16 @@ IMPORTANT — comment agir :
 - Les autres opérations (suppressions, modifications) s'exécutent directement — sois prudent.
 
 Les dates sont au format AAAA-MM-JJ. Ne planifie que des recettes existantes (getRecipes) ;
-pour assigner une tâche, retrouve le prénom exact avec getFamilyMembers. Le budget est réservé
-aux parents. Sois concis, amical, en français. N'invente jamais de données.`;
+pour assigner une tâche, retrouve le prénom exact avec getFamilyMembers. Sois concis, amical,
+en français. N'invente jamais de données.
+
+BUDGET (réservé aux parents) — pour toute question de dépenses/économies (« comment réduire mes
+dépenses ? », « où part mon argent ? ») : appelle getMonthlySpending et raisonne UNIQUEMENT sur
+ses chiffres réels (total, plafond, restant, projection, panier moyen, catégories en hausse).
+Pour proposer des économies, croise avec getInventory (utiliser ce qu'on a déjà) et getRecipes
+(repas moins coûteux). N'invente JAMAIS un montant ni une économie : toute somme doit venir des
+données. Présente les projections comme des ESTIMATIONS (« au rythme actuel », « environ »),
+jamais comme des certitudes. Si les données sont insuffisantes, dis-le simplement.`;
 
 const MAX_TOOL_ROUNDS = 4;
 

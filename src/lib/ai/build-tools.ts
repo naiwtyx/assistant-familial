@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { aggregateReceiptItems, type CategoryTotal } from "@/features/budget/lib/aggregate";
 import { compareMonthlySpending, significantIncreases } from "@/features/budget/lib/budget-insights";
+import { averageBasket, projectMonthEnd } from "@/features/budget/lib/metrics";
 import { getExpiryStatus } from "@/features/inventory/lib/expiry";
 import { normalizeName } from "@/lib/normalize";
 import type { Database } from "@/types/database.types";
@@ -349,7 +350,7 @@ export const tools: Groq.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "getMonthlySpending",
       description:
-        "Total des dépenses (tickets scannés) d'un mois, par catégorie, avec comparaison au mois précédent et catégories en forte hausse. Réservé aux parents.",
+        "Analyse budgétaire d'un mois (tickets scannés) : total, plafond, restant, projection de fin de mois, panier moyen, répartition par catégorie, comparaison au mois précédent et catégories en forte hausse. Utilise ces vrais chiffres pour toute question de budget/économies. Réservé aux parents.",
       parameters: {
         type: "object",
         properties: {
@@ -389,7 +390,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   chores: ["tache", "corvee", "menage", "classement", "point", "assign", "poubelle", "vaisselle", "ranger"],
   events: ["agenda", "evenement", "rendez", "rdv", "calendrier", "sortie", "activite", "anniversaire"],
   ideas: ["idee", "suggestion", "envie"],
-  budget: ["budget", "depense", "argent", "cout", "prix", "ticket", "euro"],
+  budget: ["budget", "depense", "argent", "cout", "prix", "ticket", "euro", "economi", "reduire", "moins cher", "coute"],
 };
 
 const DEFAULT_CATEGORIES = ["shopping", "inventory", "recipes", "meals", "chores", "events", "family"];
@@ -412,6 +413,13 @@ export function selectTools(userText: string): Groq.Chat.Completions.ChatComplet
   }
   if (matched.has("shopping")) matched.add("inventory");
   if (matched.has("chores")) matched.add("family");
+  // Réduire les dépenses passe souvent par l'inventaire (utiliser l'existant)
+  // et les recettes/repas -> on donne ces outils à l'IA pour ses pistes.
+  if (matched.has("budget")) {
+    matched.add("inventory");
+    matched.add("recipes");
+    matched.add("meals");
+  }
 
   // Rien de reconnu (salutation, question vague) -> cœur du quotidien.
   const categories = matched.size > 0 ? matched : new Set(DEFAULT_CATEGORIES);
@@ -948,9 +956,41 @@ export function buildExecutors(supabase: Db, familyId: string, userId: string): 
       );
       const comparison = compareMonthlySpending(current, previous);
 
+      // Plafond + restant + projection (mois courant) + panier moyen : de vraies
+      // valeurs pour que l'IA raisonne sans jamais inventer de chiffre.
+      const { data: familyRow } = await supabase
+        .from("families")
+        .select("monthly_budget")
+        .eq("id", familyId)
+        .single();
+      const budgetCap = familyRow?.monthly_budget ?? null;
+      const remaining =
+        budgetCap != null ? Number((budgetCap - comparison.total).toFixed(2)) : null;
+
+      const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const projectedMonthEnd = isCurrentMonth
+        ? projectMonthEnd(comparison.total, now.getDate(), daysInMonth)
+        : null;
+
+      const since = new Date();
+      since.setMonth(since.getMonth() - 6);
+      const { data: receiptsForBasket } = await supabase
+        .from("receipts")
+        .select("total")
+        .eq("family_id", familyId)
+        .gte("purchased_at", since.toISOString().slice(0, 10));
+      const basket = averageBasket(
+        (receiptsForBasket ?? []).map((row) => ({ purchased_at: "", total: row.total })),
+      );
+
       return JSON.stringify({
         month: `${year}-${String(month).padStart(2, "0")}`,
         total: Number(comparison.total.toFixed(2)),
+        budgetCap,
+        remaining,
+        projectedMonthEnd,
+        averageBasket: basket != null ? Number(basket.toFixed(2)) : null,
         byCategory: Object.fromEntries(comparison.categories.map((row) => [row.category, row.amount])),
         previousMonthTotal: Number(comparison.previousTotal.toFixed(2)),
         changePercentVsPreviousMonth:
