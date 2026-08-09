@@ -6,6 +6,7 @@ import { canMemberUseAi } from "@/features/family/lib/ai-access";
 import { buildProposedAction, writeToolToActionType, type ProposedAction } from "@/lib/ai/actions";
 import { newActionId } from "@/lib/ai/actions-schema";
 import { buildExecutors, selectTools } from "@/lib/ai/build-tools";
+import { parseQuickIntent } from "@/lib/ai/quick-intent";
 import { computeWeekPlan } from "@/lib/ai/week-plan";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { createClient } from "@/lib/supabase/server";
@@ -140,10 +141,60 @@ export async function POST(request: Request) {
   const executors = buildExecutors(supabase, familyId, user.id);
   const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 
-  // Ne transmet à l'IA que les outils pertinents pour la demande courante
-  // (fiabilité du tool-calling). Toutes les capacités restent disponibles.
   const lastUserText =
     [...parsed.data.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+
+  // Voie rapide DÉTERMINISTE : les commandes les plus fréquentes (ajouter aux
+  // courses, organiser la semaine) sont comprises sans appeler l'IA -> zéro
+  // token Groq consommé. Filet de sécurité : ça ne fait que PROPOSER des
+  // actions, l'utilisateur confirme.
+  const quick = parseQuickIntent(lastUserText);
+  if (quick) {
+    try {
+      if (quick.kind === "add_shopping") {
+        const actions: ProposedAction[] = [];
+        for (const item of quick.items) {
+          const built = buildProposedAction("addShoppingItem", { ...item });
+          if (built.ok && !actions.some((a) => a.label === built.action.label)) {
+            actions.push(built.action);
+          }
+        }
+        if (actions.length > 0) {
+          return NextResponse.json({ text: "Je te propose d'ajouter ça à tes courses :", actions });
+        }
+      } else if (quick.kind === "plan_week") {
+        const today = new Date().toISOString().slice(0, 10);
+        const plan = await computeWeekPlan(supabase, familyId, today);
+        if (!("error" in plan)) {
+          const missingNote =
+            plan.missing.length > 0 ? ` · ${plan.missing.length} ingrédient(s) manquant(s)` : "";
+          return NextResponse.json({
+            text: "Voici une proposition de semaine :",
+            actions: [
+              {
+                id: newActionId(),
+                type: "plan_week",
+                label: `Planifier la semaine (${plan.slots.length} repas${missingNote})`,
+                params: {
+                  startDate: plan.startIso,
+                  endIso: plan.endIso,
+                  slots: plan.slots,
+                  missing: plan.missing,
+                },
+              },
+            ],
+          });
+        }
+        // Pas de recettes (ou autre) : on laisse l'IA formuler une réponse utile.
+      }
+    } catch (error) {
+      console.error("[assistant] voie rapide:", error);
+      // On retombe sur l'IA en cas de souci.
+    }
+  }
+
+  // Ne transmet à l'IA que les outils pertinents pour la demande courante
+  // (fiabilité du tool-calling). Toutes les capacités restent disponibles.
   const tools = selectTools(lastUserText);
 
   const now = new Date();
