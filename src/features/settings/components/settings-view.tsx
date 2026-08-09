@@ -11,6 +11,7 @@ import { useMyMembership } from "@/features/family/components/family-provider";
 import { FamilyMembersList } from "@/features/family/components/family-members-list";
 import { InviteCard } from "@/features/family/components/invite-card";
 import { ROLE_LABELS, isAuthorized } from "@/features/family/lib/roles";
+import { HouseholdKnowledge } from "@/features/patterns/components/household-knowledge";
 
 import { NotificationSettings } from "./notification-settings";
 
@@ -87,9 +88,14 @@ export function SettingsView() {
         </div>
       </Section>
 
+      {/* Ce que l'assistant a appris du foyer (transparence). */}
+      <Section title="Assistant" className="motion-in-delay-2">
+        <HouseholdKnowledge familyId={family.id} />
+      </Section>
+
       {/* Famille : membres + invitations. Déplacé depuis le dashboard : ce n'est
           pas une info d'accueil quotidienne, c'est un réglage. */}
-      <Section title="Famille" className="motion-in-delay-2">
+      <Section title="Famille" className="motion-in-delay-3">
         <div className="flex flex-col gap-3">
           <FamilyMembersList familyId={family.id} />
           <InviteCard familyId={family.id} />
