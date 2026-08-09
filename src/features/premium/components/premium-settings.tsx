@@ -1,22 +1,23 @@
 "use client";
 
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useMyMembership } from "@/features/family/components/family-provider";
-import { isAuthorized } from "@/features/family/lib/roles";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 
-import { useIsPremium, useSetPremium } from "../hooks/use-premium";
+import { useIsAdmin, useIsPremium, useSetPremium, useSetPremiumByEmail } from "../hooks/use-premium";
 import { FREE_FEATURES, PREMIUM_FEATURES } from "../lib/features";
 
-/** Réglage « Assistant Budget » : statut + comparatif + interrupteur (parents). */
+/** Réglage « Assistant Budget » : statut + comparatif + gestion (admin). */
 export function PremiumSettings() {
-  const { family, role } = useMyMembership();
+  const { family } = useMyMembership();
   const isPremium = useIsPremium();
-  const canManage = isAuthorized(role);
+  const isAdmin = useIsAdmin();
   const setPremium = useSetPremium(family.id);
 
   function toggle() {
@@ -44,9 +45,7 @@ export function PremiumSettings() {
         <span
           className={cn(
             "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-            isPremium
-              ? "bg-primary/10 text-primary"
-              : "bg-muted text-muted-foreground",
+            isPremium ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
           )}
         >
           {isPremium ? "Premium" : "Gratuit"}
@@ -58,17 +57,88 @@ export function PremiumSettings() {
         <FeatureColumn title="Assistant Budget" features={PREMIUM_FEATURES} />
       </div>
 
-      {canManage ? (
-        <Button
-          variant={isPremium ? "outline" : "default"}
-          onClick={toggle}
-          disabled={setPremium.isPending}
+      {/* Panneau admin — visible uniquement pour l'administrateur. */}
+      {isAdmin ? <AdminPanel familyId={family.id} isPremium={isPremium} onToggle={toggle} pending={setPremium.isPending} /> : null}
+    </div>
+  );
+}
+
+function AdminPanel({
+  isPremium,
+  onToggle,
+  pending,
+}: {
+  familyId: string;
+  isPremium: boolean;
+  onToggle: () => void;
+  pending: boolean;
+}) {
+  const grant = useSetPremiumByEmail();
+  const [email, setEmail] = useState("");
+
+  function apply(premium: boolean) {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    grant.mutate(
+      { email: trimmed, premium },
+      {
+        onSuccess: (count) =>
+          count > 0
+            ? toast.success(premium ? `Premium accordé (${count} foyer)` : `Premium retiré (${count} foyer)`)
+            : toast.error("Aucun foyer trouvé pour cet email."),
+        onError: (error) => toast.error(getErrorMessage(error)),
+      },
+    );
+  }
+
+  return (
+    <div className="border-border/60 flex flex-col gap-3 border-t pt-4">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.08em] uppercase">
+        <ShieldCheck className="size-3.5" strokeWidth={2} />
+        Administration
+      </p>
+
+      {/* Ton propre foyer. */}
+      <Button
+        variant={isPremium ? "outline" : "default"}
+        onClick={onToggle}
+        disabled={pending}
+        className="h-10 rounded-xl"
+      >
+        {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+        {isPremium ? "Désactiver pour mon foyer" : "Activer pour mon foyer"}
+      </Button>
+
+      {/* Accorder/retirer à un autre foyer par email. */}
+      <div className="flex flex-col gap-2">
+        <Input
+          type="email"
+          inputMode="email"
+          autoCapitalize="none"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="email du testeur…"
           className="h-10 rounded-xl"
-        >
-          {setPremium.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-          {isPremium ? "Désactiver l'Assistant Budget" : "Activer l'Assistant Budget"}
-        </Button>
-      ) : null}
+        />
+        <div className="flex gap-2">
+          <Button
+            onClick={() => apply(true)}
+            disabled={grant.isPending || email.trim().length === 0}
+            className="h-9 flex-1 rounded-xl"
+          >
+            {grant.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" strokeWidth={2} />}
+            Donner
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => apply(false)}
+            disabled={grant.isPending || email.trim().length === 0}
+            className="h-9 flex-1 rounded-xl"
+          >
+            Retirer
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

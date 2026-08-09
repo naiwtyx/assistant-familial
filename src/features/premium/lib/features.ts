@@ -1,3 +1,6 @@
+/** Compte administrateur : seul habilité à accorder/retirer le Premium. */
+export const ADMIN_EMAIL = "naiwtyx@gmail.com";
+
 /** Fonctionnalités Budget gratuites (données brutes des tickets). */
 export const FREE_FEATURES = [
   "Définir un budget mensuel",

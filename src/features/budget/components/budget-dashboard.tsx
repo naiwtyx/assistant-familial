@@ -17,10 +17,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { categoryLabel } from "@/config/constants";
-import { useMyMembership } from "@/features/family/components/family-provider";
-import { isAuthorized } from "@/features/family/lib/roles";
+import { useActiveFamily } from "@/features/family/components/family-provider";
 import { PremiumUpsell } from "@/features/premium/components/premium-upsell";
-import { useIsPremium, useSetPremium } from "@/features/premium/hooks/use-premium";
+import { useIsAdmin, useIsPremium, useSetPremium } from "@/features/premium/hooks/use-premium";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 
@@ -51,10 +50,10 @@ const MONTHS = [
 
 export function BudgetDashboard({ familyId }: { familyId: string }) {
   const now = new Date();
-  const { family, role } = useMyMembership();
+  const family = useActiveFamily();
   const isPremium = useIsPremium();
   const setPremium = useSetPremium(familyId);
-  const canActivate = isAuthorized(role);
+  const canActivate = useIsAdmin();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const { data, isLoading } = useMonthlyBudget(familyId, year, month);

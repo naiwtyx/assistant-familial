@@ -48,7 +48,9 @@ export function PremiumUpsell({
           Activer l&apos;Assistant Budget
         </Button>
       ) : (
-        <p className="text-muted-foreground text-xs">Demandez à un parent d&apos;activer l&apos;Assistant Budget.</p>
+        <p className="text-muted-foreground text-xs">
+          Contactez-nous pour activer l&apos;Assistant Budget pour votre foyer.
+        </p>
       )}
     </div>
   );
