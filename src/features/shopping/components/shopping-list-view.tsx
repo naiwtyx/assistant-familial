@@ -18,6 +18,7 @@ import { getErrorMessage } from "@/lib/get-error-message";
 
 import { useShoppingList } from "../hooks/use-shopping-list";
 import { groupByRayon } from "../lib/categorize";
+import { countAlreadyInStock } from "../lib/stock-overlap";
 import { AddItemForm } from "./add-item-form";
 import { ShoppingItemRow } from "./shopping-item-row";
 
@@ -34,7 +35,13 @@ export function ShoppingListView() {
   const { data: inventory } = useInventory(family.id);
   const expiringSoonCount =
     inventory?.filter((item) => getExpiryStatus(item.expiry_date) === "soon").length ?? 0;
+  const alreadyInStock = countAlreadyInStock(toBuy, inventory ?? []);
   const suggestion = (() => {
+    // Priorité : éviter un achat en double (croisement liste ↔ inventaire).
+    if (alreadyInStock.count >= 1) {
+      const names = alreadyInStock.names.slice(0, 3).join(", ");
+      return `${alreadyInStock.count} produit${alreadyInStock.count > 1 ? "s" : ""} de ta liste ${alreadyInStock.count > 1 ? "sont" : "est"} déjà en stock (${names}) — inutile de racheter ?`;
+    }
     if (toBuy.length >= 8) {
       return `${toBuy.length} articles à acheter. Pense à faire les courses cette semaine.`;
     }

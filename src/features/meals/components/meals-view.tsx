@@ -55,16 +55,33 @@ export function MealsView() {
     [meals],
   );
   const totalSlots = days.length * SLOTS.length;
+
+  // Prochain créneau non planifié à partir d'aujourd'hui (insight actionnable).
+  const nextGap = useMemo(() => {
+    for (const day of days) {
+      if (day.iso < TODAY_ISO) continue;
+      for (const { slot, label } of SLOTS) {
+        const meal = mealByKey.get(`${day.iso}:${slot}`);
+        if (!meal?.recipe_id) {
+          const dayLabel = day.iso === TODAY_ISO ? "aujourd'hui" : `${day.label} ${day.dayNum}`;
+          return `${dayLabel} ${label.toLowerCase()}`;
+        }
+      }
+    }
+    return null;
+  }, [days, mealByKey]);
+
   const suggestion = (() => {
     if ((recipes?.length ?? 0) === 0) return null;
     if (plannedCount === 0) {
-      return "Aucun repas planifié cette semaine — demande à l'assistant de la remplir pour toi.";
-    }
-    if (plannedCount < totalSlots / 2) {
-      return `${plannedCount} repas sur ${totalSlots} planifiés — il reste de la place pour improviser.`;
+      return "Aucun repas planifié cette semaine — demande à l'assistant d'organiser ta semaine.";
     }
     if (plannedCount === totalSlots) {
       return "Semaine complètement planifiée. Ajoute les ingrédients manquants aux courses en un tap.";
+    }
+    // Créneau précis à combler : plus actionnable qu'un simple compte.
+    if (nextGap) {
+      return `Ton repas de ${nextGap} n'est pas encore planifié.`;
     }
     return null;
   })();
