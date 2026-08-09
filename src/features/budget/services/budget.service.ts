@@ -164,6 +164,8 @@ export type ShoppingEstimateContext = {
   spentThisMonth: number;
   /** nb de produits distincts avec un prix connu (garde-fou d'affichage). */
   priceSampleSize: number;
+  /** panier moyen (habitude), null si pas assez de tickets. */
+  averageBasket: number | null;
 };
 
 /**
@@ -178,20 +180,29 @@ export async function getShoppingEstimateContext(familyId: string): Promise<Shop
   const sinceIso = since.toISOString().slice(0, 10);
   const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
 
-  const [historyResult, monthResult] = await Promise.all([
+  const [historyResult, monthResult, receiptsResult] = await Promise.all([
     supabase
       .from("receipt_items")
       .select("name,price")
       .eq("family_id", familyId)
       .gte("purchased_at", sinceIso),
     supabase.from("receipt_items").select("price").eq("family_id", familyId).gte("purchased_at", monthStart),
+    supabase.from("receipts").select("total").eq("family_id", familyId).gte("purchased_at", sinceIso),
   ]);
   if (historyResult.error) throw historyResult.error;
 
   const priceByName = buildPriceMap(historyResult.data ?? []);
   const spentThisMonth = (monthResult.data ?? []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);
+  const basket = averageBasket(
+    (receiptsResult.data ?? []).map((row) => ({ purchased_at: "", total: row.total })),
+  );
 
-  return { priceByName, spentThisMonth, priceSampleSize: Object.keys(priceByName).length };
+  return {
+    priceByName,
+    spentThisMonth,
+    priceSampleSize: Object.keys(priceByName).length,
+    averageBasket: basket,
+  };
 }
 
 /** Compare les dépenses du mois donné (`month` 0-indexé) à celles du mois précédent. */

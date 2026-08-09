@@ -78,6 +78,13 @@ export function ListEstimateCard({ familyId, itemNames }: { familyId: string; it
         </div>
       ) : null}
 
+      {/* Recommandation basée sur l'habitude (pattern panier moyen). */}
+      {data.averageBasket != null && estimate.total > data.averageBasket * 1.15 ? (
+        <p className="text-muted-foreground text-[12px]">
+          C&apos;est au-dessus de votre panier habituel (~{euro.format(data.averageBasket)}).
+        </p>
+      ) : null}
+
       <p className="text-muted-foreground text-[10.5px]">
         Estimation basée sur tes tickets — les prix réels peuvent varier.
       </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, ShoppingCart, UtensilsCrossed, X } from "lucide-react";
+import { Brain, ShoppingCart, UtensilsCrossed, Wallet, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useHouseholdPatterns } from "../hooks/use-patterns";
@@ -24,6 +24,7 @@ function readDismissed(familyId: string): string[] {
 const CATEGORY_ICON: Record<HouseholdPattern["category"], typeof ShoppingCart> = {
   shopping: ShoppingCart,
   meal: UtensilsCrossed,
+  budget: Wallet,
 };
 
 /**
