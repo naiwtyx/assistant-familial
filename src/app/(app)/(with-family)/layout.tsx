@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/shared/bottom-nav";
+import { InstallPrompt } from "@/components/shared/install-prompt";
 import { OfflineSupport } from "@/components/shared/offline-support";
 import { FamilyProvider } from "@/features/family/components/family-provider";
 import { canMemberUseAi } from "@/features/family/lib/ai-access";
@@ -67,6 +68,7 @@ export default async function WithFamilyLayout({ children }: { children: React.R
       {/* Zone sûre en haut (encoche) + espace en bas pour la barre fixe. */}
       <div className="pt-[env(safe-area-inset-top)] pb-24">{children}</div>
       <BottomNav />
+      <InstallPrompt />
     </FamilyProvider>
   );
 }
