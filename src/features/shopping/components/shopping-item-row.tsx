@@ -133,7 +133,7 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
       <Button
         variant="ghost"
         size="icon"
-        className="text-muted-foreground hover:text-destructive size-8 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
+        className="text-muted-foreground/70 hover:text-destructive size-8 shrink-0 transition-transform active:scale-90"
         onClick={() => {
           haptic("warning");
           remove.mutate(item.id, { onError });
