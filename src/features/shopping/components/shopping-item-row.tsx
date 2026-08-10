@@ -4,6 +4,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { quantityUnitLabel } from "@/config/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -17,27 +18,6 @@ import {
   useSetShoppingItemChecked,
   useUpdateShoppingItem,
 } from "../hooks/use-shopping-list";
-
-/**
- * Unité lisible à côté de la quantité. Rien pour les pièces (un nombre seul
- * est déjà clair : « 2 »), l'unité sinon (« 500 g », « 1 L », « 2 paquets »).
- */
-function quantityUnit(unit: string | null, quantity: number): string {
-  switch (unit) {
-    case "g":
-      return "g";
-    case "kg":
-      return "kg";
-    case "ml":
-      return "ml";
-    case "l":
-      return "L";
-    case "pack":
-      return quantity > 1 ? "paquets" : "paquet";
-    default:
-      return "";
-  }
-}
 
 export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; familyId: string }) {
   const toggle = useSetShoppingItemChecked(familyId);
@@ -140,9 +120,9 @@ export function ShoppingItemRow({ item, familyId }: { item: ShoppingItem; family
         </Button>
         <span className="min-w-6 px-1 text-center text-sm font-medium whitespace-nowrap tabular-nums">
           {item.quantity}
-          {quantityUnit(item.unit, item.quantity) ? (
+          {quantityUnitLabel(item.unit, item.quantity) ? (
             <span className="text-muted-foreground ml-0.5 text-xs font-normal">
-              {quantityUnit(item.unit, item.quantity)}
+              {quantityUnitLabel(item.unit, item.quantity)}
             </span>
           ) : null}
         </span>

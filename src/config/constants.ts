@@ -63,3 +63,25 @@ export function categoryLabel(value: string | null): string {
 export function unitLabel(value: string | null): string {
   return value ? (UNIT_LABELS.get(value as Unit) ?? value) : "";
 }
+
+/**
+ * Unité lisible à afficher à côté d'une quantité (liste de courses, partage).
+ * Rien pour les pièces — un nombre seul est clair (« 2 ») — l'unité sinon
+ * (« 500 g », « 1 L », « 2 paquets »).
+ */
+export function quantityUnitLabel(value: string | null, quantity: number): string {
+  switch (value) {
+    case "g":
+      return "g";
+    case "kg":
+      return "kg";
+    case "ml":
+      return "ml";
+    case "l":
+      return "L";
+    case "pack":
+      return quantity > 1 ? "paquets" : "paquet";
+    default:
+      return "";
+  }
+}

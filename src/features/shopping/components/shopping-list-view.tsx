@@ -9,7 +9,7 @@ import { ListSkeleton } from "@/components/shared/list-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
-import { categoryLabel } from "@/config/constants";
+import { categoryLabel, quantityUnitLabel } from "@/config/constants";
 import { ListEstimateCard } from "@/features/budget/components/list-estimate-card";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { isAuthorized } from "@/features/family/lib/roles";
@@ -65,9 +65,10 @@ export function ShoppingListView() {
   async function handleShare() {
     if (toBuy.length === 0) return;
     const lines = toBuy.map((item) => {
-      const qty = item.quantity > 1 ? `${item.quantity} ` : "";
-      const unit = item.unit ? `${item.unit} ` : "";
-      return `- ${qty}${unit}${item.name}`;
+      const unit = quantityUnitLabel(item.unit, item.quantity);
+      // Quantité affichée si > 1, ou dès qu'une unité de mesure est présente (« 500 g »).
+      const qtyText = item.quantity > 1 || unit ? `${item.quantity}${unit ? ` ${unit}` : ""} ` : "";
+      return `- ${qtyText}${item.name}`;
     });
     const text = `Liste de courses – ${family.name}\n${lines.join("\n")}`;
     try {

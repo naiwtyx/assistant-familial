@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/empty-state";
+import { FeedSkeleton } from "@/components/shared/list-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSuggestion } from "@/components/shared/page-suggestion";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,8 @@ export function MealsView() {
   const family = useActiveFamily();
   const [weekStart, setWeekStart] = useState(() => toISODate(startOfWeek(new Date())));
 
-  const { data: meals } = useMealPlans(family.id, weekStart);
-  const { data: recipes } = useRecipes(family.id);
+  const { data: meals, isError: mealsError } = useMealPlans(family.id, weekStart);
+  const { data: recipes, isLoading: recipesLoading, isError: recipesError } = useRecipes(family.id);
   const setMeal = useSetMealRecipe(family.id);
   const clearMeal = useClearMeal(family.id);
   const addToShopping = useAddPlannedToShopping(family.id);
@@ -166,7 +167,13 @@ export function MealsView() {
         </Button>
       </div>
 
-      {!hasRecipes ? (
+      {recipesError || mealsError ? (
+        <p className="text-destructive py-4 text-center text-sm">
+          Impossible de charger les repas. Réessaie dans un instant.
+        </p>
+      ) : recipesLoading ? (
+        <FeedSkeleton />
+      ) : !hasRecipes ? (
         <EmptyState
           icon={CalendarDays}
           title="Crée d'abord des recettes"
