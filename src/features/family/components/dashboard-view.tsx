@@ -140,6 +140,13 @@ export function DashboardView() {
 
   const suggestionIsIdle = suggestion === "Rien à signaler aujourd'hui.";
 
+  // « Aujourd'hui » n'apparaît que s'il y a un vrai signal à montrer.
+  const hasToday =
+    Boolean(nextMeal) ||
+    eventsToday.length > 0 ||
+    choresDue.length > 0 ||
+    expiring.length > 0;
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-7 p-5 pb-8">
       {/* 1. Date + salutation neutre. Focus maison, pas profil : ni prénom, ni email,
@@ -180,17 +187,21 @@ export function DashboardView() {
         <AskBar />
       </div>
 
-      {/* 4. Aujourd'hui — repas, événements, tâches. Une carte = un signal clair. */}
+      {/* 4. Aujourd'hui — repas, événements, tâches. Une carte = un signal clair.
+          N'affiche QUE des signaux réels : section masquée s'il n'y a rien à
+          montrer (pas de carte « Aucun repas prévu » qui occupe l'écran pour rien). */}
+      {hasToday ? (
       <Section title="Aujourd'hui" className="motion-in-delay-2">
         <div className="grid gap-3">
-          <TodayCard
-            href="/repas"
-            icon={ChefHat}
-            label={nextMealLabel}
-            value={nextMeal?.recipeName ?? "Aucun repas prévu"}
-            hint={nextMeal ? "Repas planifié" : "Planifie-le en un clic"}
-            muted={!nextMeal}
-          />
+          {nextMeal ? (
+            <TodayCard
+              href="/repas"
+              icon={ChefHat}
+              label={nextMealLabel}
+              value={nextMeal.recipeName ?? "Repas planifié"}
+              hint="Repas planifié"
+            />
+          ) : null}
 
           {eventsToday.length > 0 ? (
             <TodayCard
@@ -259,6 +270,7 @@ export function DashboardView() {
           </Link>
         ) : null}
       </Section>
+      ) : null}
 
       {/* 5. La maison en un coup d'œil — état de la maison AVANT les accès
           rapides (hiérarchie produit : ce qui se passe > actions). Contient le
