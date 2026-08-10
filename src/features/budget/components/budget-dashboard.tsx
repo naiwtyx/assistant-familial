@@ -33,6 +33,7 @@ import {
 } from "../hooks/use-budget";
 import { computeBudgetStatus } from "../lib/budget-status";
 import { projectMonthEnd, type WeekBucket } from "../lib/metrics";
+import { ReceiptDetailDialog, type ReceiptSummary } from "./receipt-detail-dialog";
 
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const MONTHS = [
@@ -63,6 +64,7 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
   const { data: metrics } = useBudgetMetrics(familyId);
 
   const setBudget = useSetFamilyBudget(familyId);
+  const [openReceipt, setOpenReceipt] = useState<ReceiptSummary | null>(null);
   const [limit, setLimit] = useState<number | null>(family.monthly_budget);
   const [limitInput, setLimitInput] = useState(
     family.monthly_budget != null ? String(family.monthly_budget) : "",
@@ -309,23 +311,29 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
               </p>
               <ul className="bg-muted/30 flex flex-col gap-0.5 rounded-xl p-1">
                 {data.receipts.map((receipt) => (
-                  <li
-                    key={receipt.id}
-                    className="hover:bg-background/60 flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
-                  >
-                    <span className="truncate">
-                      <span className="font-medium">{receipt.store ?? "Ticket"}</span>
-                      <span className="text-muted-foreground">
-                        {" · "}
-                        {new Date(`${receipt.purchased_at}T00:00:00`).toLocaleDateString("fr-FR", {
-                          day: "2-digit",
-                          month: "short",
-                        })}
+                  <li key={receipt.id}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenReceipt(receipt)}
+                      className="hover:bg-background/60 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors active:scale-[0.99]"
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">
+                          <span className="font-medium">{receipt.store ?? "Ticket"}</span>
+                          <span className="text-muted-foreground">
+                            {" · "}
+                            {new Date(`${receipt.purchased_at}T00:00:00`).toLocaleDateString(
+                              "fr-FR",
+                              { day: "2-digit", month: "short" },
+                            )}
+                          </span>
+                        </span>
                       </span>
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">
-                      {receipt.total != null ? euro.format(receipt.total) : "—"}
-                    </span>
+                      <span className="flex shrink-0 items-center gap-1 font-medium tabular-nums">
+                        {receipt.total != null ? euro.format(receipt.total) : "—"}
+                        <ChevronRight className="text-muted-foreground/50 size-3.5" strokeWidth={2} />
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -390,6 +398,14 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
           <span className="text-muted-foreground text-sm">€</span>
         </span>
       </label>
+
+      <ReceiptDetailDialog
+        familyId={familyId}
+        receipt={openReceipt}
+        onOpenChange={(open) => {
+          if (!open) setOpenReceipt(null);
+        }}
+      />
     </div>
   );
 }

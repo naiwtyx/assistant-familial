@@ -43,6 +43,50 @@ export async function saveReceipt(input: SaveReceiptInput): Promise<void> {
   if (error) throw error;
 }
 
+export type ReceiptItemRow = {
+  id: string;
+  name: string;
+  quantity: number;
+  category: string | null;
+  price: number;
+};
+
+// La RPC de correction de catégorie n'est pas dans les types générés.
+type UntypedRpc = {
+  rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+};
+
+/** Lignes d'un ticket (réservé aux parents via RLS). Pour corriger les catégories. */
+export async function getReceiptItems(receiptId: string): Promise<ReceiptItemRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("receipt_items")
+    .select("id,name,quantity,category,price")
+    .eq("receipt_id", receiptId)
+    .order("price", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    quantity: Number(row.quantity) || 1,
+    category: row.category,
+    price: Number(row.price) || 0,
+  }));
+}
+
+/** Corrige la catégorie d'une ligne de ticket (réservé aux parents, via RPC). */
+export async function updateReceiptItemCategory(
+  itemId: string,
+  category: string | null,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await (supabase as unknown as UntypedRpc).rpc("update_receipt_item_category", {
+    p_item_id: itemId,
+    p_category: category,
+  });
+  if (error) throw error;
+}
+
 export type MonthlyBudget = {
   total: number;
   byCategory: CategoryTotal[];
