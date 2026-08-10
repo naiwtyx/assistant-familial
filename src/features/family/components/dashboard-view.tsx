@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarClock,
   CalendarDays,
+  Camera,
   ChefHat,
   CheckSquare,
   ChevronRight,
@@ -298,6 +299,24 @@ export function DashboardView() {
             caption="en stock"
           />
         </div>
+
+        {/* Scanner de ticket — action phare (alimente budget + inventaire),
+            rendue bien visible plutôt que cachée dans l'inventaire. */}
+        <Link
+          href="/scanner"
+          className="group bg-card shadow-soft flex items-center gap-3 rounded-2xl p-4 transition-all hover:shadow-elevated active:scale-[0.98]"
+        >
+          <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <Camera className="size-5" strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-medium">Scanner un ticket</p>
+            <p className="text-muted-foreground text-xs">
+              Mets à jour tes dépenses et ton stock en une photo
+            </p>
+          </div>
+          <ChevronRight className="text-muted-foreground/60 size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+        </Link>
       </Section>
     </main>
   );

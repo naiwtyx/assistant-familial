@@ -60,13 +60,9 @@ export function InventoryView() {
         subtitle={family.name}
         actions={
           <>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => router.push("/scanner")}
-              aria-label="Scanner un ticket"
-            >
+            <Button size="sm" variant="outline" onClick={() => router.push("/scanner")}>
               <Camera className="size-4" strokeWidth={1.75} />
+              Scanner
             </Button>
             <Button size="sm" onClick={() => setAdding(true)}>
               <Plus className="size-4" strokeWidth={1.75} />

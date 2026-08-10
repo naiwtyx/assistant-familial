@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Camera,
   ChevronLeft,
   ChevronRight,
   Info,
@@ -11,10 +12,11 @@ import {
   TriangleAlert,
   Wallet,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { categoryLabel } from "@/config/constants";
 import { useActiveFamily } from "@/features/family/components/family-provider";
@@ -177,6 +179,10 @@ export function BudgetDashboard({ familyId }: { familyId: string }) {
             <br />
             Scanne un ticket de caisse pour commencer.
           </p>
+          <Link href="/scanner" className={cn(buttonVariants({ size: "sm" }), "mt-1 rounded-xl")}>
+            <Camera className="size-4" strokeWidth={1.75} />
+            Scanner un ticket
+          </Link>
         </div>
       ) : (
         <>
