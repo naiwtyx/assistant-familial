@@ -190,6 +190,8 @@ export async function getShoppingEstimateContext(familyId: string): Promise<Shop
     supabase.from("receipts").select("total").eq("family_id", familyId).gte("purchased_at", sinceIso),
   ]);
   if (historyResult.error) throw historyResult.error;
+  if (monthResult.error) throw monthResult.error;
+  if (receiptsResult.error) throw receiptsResult.error;
 
   const priceByName = buildPriceMap(historyResult.data ?? []);
   const spentThisMonth = (monthResult.data ?? []).reduce((sum, row) => sum + (Number(row.price) || 0), 0);

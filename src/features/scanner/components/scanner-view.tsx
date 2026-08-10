@@ -135,6 +135,8 @@ export function ScannerView() {
     const total = meta?.total ?? all.reduce((sum, item) => sum + (item.price || 0), 0);
     const selected = all.filter((item) => item.selected);
 
+    // La dépense est l'écriture PRINCIPALE (elle alimente le budget). Si elle
+    // échoue, on s'arrête : rien n'a été enregistré, l'utilisateur peut réessayer.
     try {
       await saveReceipt.mutateAsync({
         store: meta?.store ?? null,
@@ -147,20 +149,35 @@ export function ScannerView() {
           price: item.price || 0,
         })),
       });
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+      return;
+    }
 
-      if (selected.length > 0) {
+    // L'ajout à l'inventaire est SECONDAIRE : s'il échoue, la dépense reste
+    // enregistrée. On ne montre PAS une erreur globale (qui pousserait à
+    // re-scanner et à compter la dépense deux fois) — juste un avertissement ciblé.
+    let inventoryFailed = false;
+    if (selected.length > 0) {
+      try {
         await addScanned.mutateAsync(
           selected.map((item) => ({ name: item.name.trim(), quantity: item.quantity })),
         );
+      } catch {
+        inventoryFailed = true;
       }
+    }
 
+    if (inventoryFailed) {
+      toast.warning(
+        "Dépense enregistrée. L'ajout à l'inventaire a échoué — tu peux ajouter les produits depuis l'inventaire.",
+      );
+    } else {
       toast.success(
         `Dépense enregistrée${selected.length > 0 ? ` · ${selected.length} produit(s) ajouté(s) à l'inventaire` : ""}`,
       );
-      router.push("/inventaire");
-    } catch (error) {
-      toast.error(getErrorMessage(error));
     }
+    router.push("/inventaire");
   }
 
   const scanTip =
