@@ -260,29 +260,10 @@ export function DashboardView() {
         ) : null}
       </Section>
 
-      {/* 5. Accès rapides — juste avant "La maison" pour ramener les actions
-          fréquentes vers le haut du scroll. Courses/Inventaire n'y figurent
-          pas (déjà dans la bottom-nav). */}
-      <Section title="Accès rapides" className="motion-in-delay-3">
-        <div className="grid grid-cols-3 gap-2">
-          {SHORTCUTS.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="group bg-card shadow-soft flex flex-col items-center gap-1.5 rounded-2xl p-3 transition-all active:scale-[0.97]"
-            >
-              <Icon
-                className="text-foreground/80 group-hover:text-primary size-[18px] transition-colors"
-                strokeWidth={1.75}
-              />
-              <span className="text-[11px] font-medium">{label}</span>
-            </Link>
-          ))}
-        </div>
-      </Section>
-
-      {/* 6. La maison en un coup d'œil — les 2 chiffres qui la pilotent. */}
-      <Section title="La maison en un coup d'œil" className="motion-in-delay-4">
+      {/* 5. La maison en un coup d'œil — état de la maison AVANT les accès
+          rapides (hiérarchie produit : ce qui se passe > actions). Contient le
+          scanner, action phare qui alimente budget + inventaire. */}
+      <Section title="La maison en un coup d'œil" className="motion-in-delay-3">
         <div className="grid grid-cols-2 gap-3">
           <StatTile
             href="/courses"
@@ -300,8 +281,8 @@ export function DashboardView() {
           />
         </div>
 
-        {/* Scanner de ticket — action phare (alimente budget + inventaire),
-            rendue bien visible plutôt que cachée dans l'inventaire. */}
+        {/* Scanner de ticket — remonté avec l'état de la maison pour qu'il soit
+            immédiatement visible (alimente budget + inventaire). */}
         <Link
           href="/scanner"
           className="group bg-card shadow-soft flex items-center gap-3 rounded-2xl p-4 transition-all hover:shadow-elevated active:scale-[0.98]"
@@ -317,6 +298,26 @@ export function DashboardView() {
           </div>
           <ChevronRight className="text-muted-foreground/60 size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
         </Link>
+      </Section>
+
+      {/* 6. Accès rapides — actions fréquentes, sous l'état de la maison.
+          Courses/Inventaire n'y figurent pas (déjà dans la bottom-nav). */}
+      <Section title="Accès rapides" className="motion-in-delay-4">
+        <div className="grid grid-cols-3 gap-2">
+          {SHORTCUTS.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group bg-card shadow-soft flex flex-col items-center gap-1.5 rounded-2xl p-3 transition-all active:scale-[0.97]"
+            >
+              <Icon
+                className="text-foreground/80 group-hover:text-primary size-[18px] transition-colors"
+                strokeWidth={1.75}
+              />
+              <span className="text-[11px] font-medium">{label}</span>
+            </Link>
+          ))}
+        </div>
       </Section>
     </main>
   );

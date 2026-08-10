@@ -40,16 +40,27 @@ export function ParentsView() {
       </Link>
 
       <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <ShieldCheck className="text-primary size-5" />
+        <h1 className="font-heading flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <ShieldCheck className="text-primary size-5" strokeWidth={1.75} />
           Espace parents
         </h1>
-        <p className="text-muted-foreground text-sm">Réservé aux parents · {family.name}</p>
+        <p className="text-muted-foreground text-sm">{family.name}</p>
       </header>
 
-      <div className="bg-muted/40 text-muted-foreground rounded-xl border border-dashed p-4 text-sm">
-        🔒 Cette page n&apos;est visible que par les parents. Gère ici qui peut administrer la
-        famille.
+      {/* Bannière distincte (accent, pas le style « carte » habituelle) pour que
+          l'utilisateur comprenne immédiatement que cette zone diffère des
+          réglages normaux (§ 8). */}
+      <div className="bg-primary/5 border-primary/15 flex items-start gap-3 rounded-2xl border p-4">
+        <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-xl">
+          <ShieldCheck className="size-[18px]" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[14px] font-medium">Espace réservé aux parents</p>
+          <p className="text-muted-foreground mt-0.5 text-[13px] leading-relaxed">
+            Les paramètres de gestion de la famille sont regroupés ici : budget, rôles, accès à
+            l&apos;assistant et invitations.
+          </p>
+        </div>
       </div>
 
       <PendingInvitesCard familyId={family.id} />

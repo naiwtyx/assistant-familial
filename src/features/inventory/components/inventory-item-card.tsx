@@ -67,38 +67,45 @@ export function InventoryItemCard({ item, familyId }: { item: InventoryItem; fam
         </div>
       </button>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      {/* Stepper groupé en pilule : cible tactile plus grande, cohérent avec les
+          courses. La corbeille est séparée par une marge pour éviter les
+          suppressions accidentelles en montant la quantité. */}
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="bg-muted/60 flex items-center rounded-full p-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full"
+            onClick={() => changeQuantity(-1)}
+            disabled={item.quantity <= 0}
+            aria-label="Diminuer la quantité"
+          >
+            <Minus className="size-3.5" />
+          </Button>
+          <span className="min-w-11 text-center text-sm font-medium tabular-nums">
+            {item.quantity}
+            {item.unit ? (
+              <span className="text-muted-foreground text-xs font-normal"> {unitLabel(item.unit)}</span>
+            ) : null}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full"
+            onClick={() => changeQuantity(1)}
+            aria-label="Augmenter la quantité"
+          >
+            <Plus className="size-3.5" />
+          </Button>
+        </div>
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
-          onClick={() => changeQuantity(-1)}
-          disabled={item.quantity <= 0}
-          aria-label="Diminuer la quantité"
-        >
-          <Minus className="size-3.5" />
-        </Button>
-        <span className="min-w-10 text-center text-sm tabular-nums">
-          {item.quantity}
-          {item.unit ? <span className="text-muted-foreground text-xs"> {unitLabel(item.unit)}</span> : null}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => changeQuantity(1)}
-          aria-label="Augmenter la quantité"
-        >
-          <Plus className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-destructive size-7"
+          className="text-muted-foreground/70 hover:text-destructive size-8 transition-transform active:scale-90"
           onClick={() => remove.mutate(item.id, { onError })}
           aria-label="Supprimer le produit"
         >
-          <Trash2 className="size-4" />
+          <Trash2 className="size-4" strokeWidth={1.75} />
         </Button>
       </div>
 
