@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { track } from "@/lib/analytics/track";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 import { useCreateFamily } from "../hooks/use-family";
@@ -32,6 +33,7 @@ export function CreateFamilyForm() {
   function onSubmit(values: CreateFamilyInput) {
     createFamily.mutate(values, {
       onSuccess: () => {
+        track("onboarding_completed");
         toast.success("Famille créée 🎉");
         router.replace("/dashboard");
         router.refresh();

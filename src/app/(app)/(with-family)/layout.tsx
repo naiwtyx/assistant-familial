@@ -4,6 +4,7 @@ import { BottomNav } from "@/components/shared/bottom-nav";
 import { OfflineSupport } from "@/components/shared/offline-support";
 import { FamilyProvider } from "@/features/family/components/family-provider";
 import { canMemberUseAi } from "@/features/family/lib/ai-access";
+import { AnalyticsTracker } from "@/lib/analytics/analytics-tracker";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -62,6 +63,7 @@ export default async function WithFamilyLayout({ children }: { children: React.R
       }}
     >
       <OfflineSupport />
+      <AnalyticsTracker familyId={activeFamily.id} />
       {/* Zone sûre en haut (encoche) + espace en bas pour la barre fixe. */}
       <div className="pt-[env(safe-area-inset-top)] pb-24">{children}</div>
       <BottomNav />

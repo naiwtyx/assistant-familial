@@ -10,6 +10,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { UNITS, unitLabel } from "@/config/constants";
 import { useInventory } from "@/features/inventory/hooks/use-inventory";
 import { findInventoryMatches } from "@/features/inventory/lib/find-inventory-matches";
+import { track } from "@/lib/analytics/track";
 import { getErrorMessage } from "@/lib/get-error-message";
 
 import { useAddShoppingItem } from "../hooks/use-shopping-list";
@@ -34,7 +35,10 @@ export function AddItemForm({ familyId }: { familyId: string }) {
 
     addItem.mutate(
       { name: trimmed, quantity, unit: unit || undefined },
-      { onError: (error) => toast.error(getErrorMessage(error)) },
+      {
+        onSuccess: () => track("shopping_item_added", { familyId }),
+        onError: (error) => toast.error(getErrorMessage(error)),
+      },
     );
     setName("");
     setQuantity(1);

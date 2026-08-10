@@ -16,6 +16,7 @@ import { useSaveReceipt } from "@/features/budget/hooks/use-budget";
 import { useActiveFamily } from "@/features/family/components/family-provider";
 import { useAddScannedItems } from "@/features/inventory/hooks/use-inventory";
 import { analyzeReceipt } from "@/features/scanner/services/scanner.service";
+import { track } from "@/lib/analytics/track";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { haptic } from "@/lib/haptics";
 
@@ -153,6 +154,8 @@ export function ScannerView() {
       toast.error(getErrorMessage(error));
       return;
     }
+
+    track("receipt_scanned", { familyId: family.id, items: all.length, total });
 
     // L'ajout à l'inventaire est SECONDAIRE : s'il échoue, la dépense reste
     // enregistrée. On ne montre PAS une erreur globale (qui pousserait à

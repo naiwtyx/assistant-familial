@@ -17,6 +17,7 @@ import {
   type ProposedAction,
 } from "@/features/assistant/services/assistant.service";
 import { useMyMembership } from "@/features/family/components/family-provider";
+import { track } from "@/lib/analytics/track";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ type UiMessage = {
 };
 
 export function AssistantView() {
-  const { canUseAi } = useMyMembership();
+  const { canUseAi, family } = useMyMembership();
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
@@ -86,6 +87,7 @@ export function AssistantView() {
     setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
     setInput("");
     setIsLoading(true);
+    track("ai_message_sent", { familyId: family.id });
 
     try {
       const reply = await sendAssistantMessage(history);
@@ -114,6 +116,7 @@ export function AssistantView() {
       const failed = results.length - ok;
       haptic(ok > 0 ? "success" : "warning");
       patchMessage(index, { busy: false, actions: undefined, executed: results });
+      if (ok > 0) track("ai_action_confirmed", { familyId: family.id, count: ok });
       // L'exécution se fait côté serveur : on rafraîchit les caches pour que
       // les onglets (Courses, Tâches, Recettes…) reflètent le changement tout
       // de suite, sans dépendre du temps réel.
