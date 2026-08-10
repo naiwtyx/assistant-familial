@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Loader2, Plus, Save, X } from "lucide-react";
+import { Camera, Loader2, Plus, Save, TriangleAlert, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
@@ -127,6 +127,24 @@ export function ScannerView() {
     setItems((prev) => (prev ? prev.map((item, i) => (i === index ? { ...item, ...patch } : item)) : prev));
   }
 
+  /**
+   * Comble l'écart entre le total imprimé sur le ticket et la somme des lignes
+   * détectées (cas du scan partiel) en ajoutant une ligne "Produits non
+   * détaillés". Le budget mensuel étant agrégé à partir des lignes, sans ça la
+   * dépense serait sous-estimée silencieusement.
+   */
+  function fillMissing() {
+    if (!items || meta?.total == null) return;
+    const itemsSum = items.reduce((sum, item) => sum + (item.price || 0), 0);
+    const missing = Number((meta.total - itemsSum).toFixed(2));
+    if (missing <= 0) return;
+    setItems([
+      ...items,
+      { name: "Produits non détaillés", quantity: 1, price: missing, category: "other", selected: false },
+    ]);
+    haptic("light");
+  }
+
   async function save() {
     const all = (items ?? []).filter((item) => item.name.trim());
     if (all.length === 0) {
@@ -187,6 +205,17 @@ export function ScannerView() {
     images.length === 0 && !items
       ? "Aligne le ticket bien à plat et dans un endroit éclairé pour que l'IA lise chaque ligne."
       : null;
+
+  // Écart total imprimé / somme des lignes détectées. Tolérance : 1 € ou 3 %,
+  // pour éviter les fausses alertes dues aux arrondis / centimes.
+  const itemsSum = items?.reduce((sum, item) => sum + (item.price || 0), 0) ?? 0;
+  const totalMismatch =
+    items != null &&
+    items.length > 0 &&
+    meta?.total != null &&
+    Math.abs(meta.total - itemsSum) > Math.max(1, meta.total * 0.03);
+  const missingAmount =
+    totalMismatch && meta?.total != null ? Math.max(0, meta.total - itemsSum) : 0;
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-5 pb-8">
@@ -279,6 +308,35 @@ export function ScannerView() {
               </p>
             ) : null}
           </div>
+
+          {totalMismatch ? (
+            <div className="flex items-start gap-2.5 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-3 dark:border-amber-400/25 dark:bg-amber-400/8">
+              <TriangleAlert
+                className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                strokeWidth={2}
+              />
+              <div className="flex flex-1 flex-col gap-2">
+                <p className="text-[13px] leading-snug">
+                  Le total du ticket ({euro.format(meta!.total!)}) ne correspond pas aux produits
+                  détectés ({euro.format(itemsSum)}).
+                  {missingAmount > 0
+                    ? ` As-tu photographié tout le ticket ? Il manque environ ${euro.format(missingAmount)}.`
+                    : " Vérifie les prix des lignes."}
+                </p>
+                {missingAmount > 0 ? (
+                  <Button
+                    onClick={fillMissing}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 self-start rounded-lg"
+                  >
+                    <Plus className="size-3.5" strokeWidth={2} />
+                    Ajouter une ligne « Produits non détaillés » ({euro.format(missingAmount)})
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <ul className="bg-card shadow-soft flex flex-col gap-1 rounded-2xl p-2">
             {items.map((item, index) => (
