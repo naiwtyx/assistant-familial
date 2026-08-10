@@ -10,6 +10,7 @@ import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { FamilyMembersList } from "@/features/family/components/family-members-list";
 import { InviteCard } from "@/features/family/components/invite-card";
+import { FeedbackCard } from "@/features/feedback/components/feedback-card";
 import { ROLE_LABELS, isAuthorized } from "@/features/family/lib/roles";
 import { HouseholdKnowledge } from "@/features/patterns/components/household-knowledge";
 import { PremiumSettings } from "@/features/premium/components/premium-settings";
@@ -125,6 +126,11 @@ export function SettingsView() {
           </Link>
         </Section>
       ) : null}
+
+      {/* Aide & retours : canal de feedback pour la bêta (bug / idée). */}
+      <Section title="Aide & retours" className="motion-in-delay-3">
+        <FeedbackCard familyId={family.id} />
+      </Section>
 
       {/* Footer discret : rappel identité, pour clore proprement la page. */}
       <p className="text-muted-foreground flex items-center justify-center gap-1.5 pt-2 text-xs">
