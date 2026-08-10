@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronRight, Paintbrush, ShieldCheck, UserRound, Users } from "lucide-react";
+import { Bell, Brain, ChevronRight, Paintbrush, ShieldCheck, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,9 +10,8 @@ import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import { useMyMembership } from "@/features/family/components/family-provider";
 import { FamilyMembersList } from "@/features/family/components/family-members-list";
 import { InviteCard } from "@/features/family/components/invite-card";
-import { FeedbackCard } from "@/features/feedback/components/feedback-card";
 import { ROLE_LABELS, isAuthorized } from "@/features/family/lib/roles";
-import { HouseholdKnowledge } from "@/features/patterns/components/household-knowledge";
+import { FeedbackCard } from "@/features/feedback/components/feedback-card";
 import { PremiumSettings } from "@/features/premium/components/premium-settings";
 
 import { NotificationSettings } from "./notification-settings";
@@ -90,11 +89,26 @@ export function SettingsView() {
         </div>
       </Section>
 
-      {/* Assistant : offre Budget + ce qu'il a appris du foyer (transparence). */}
+      {/* Assistant : offre Budget + accès à « ce qu'il a appris » (page dédiée,
+          pour ne pas alourdir les réglages). */}
       <Section title="Assistant" className="motion-in-delay-2">
         <div className="flex flex-col gap-3">
           <PremiumSettings />
-          <HouseholdKnowledge familyId={family.id} />
+          <Link
+            href="/reglages/apprentissage"
+            className="group bg-card shadow-soft flex items-center gap-3 rounded-2xl p-4 transition-all active:scale-[0.99]"
+          >
+            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <Brain className="size-[18px]" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium">Ce que l&apos;assistant a appris</p>
+              <p className="text-muted-foreground text-xs">
+                Les habitudes de votre foyer détectées automatiquement
+              </p>
+            </div>
+            <ChevronRight className="text-muted-foreground/60 size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+          </Link>
         </div>
       </Section>
 

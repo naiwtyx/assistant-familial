@@ -52,9 +52,14 @@ export function PremiumSettings() {
         </span>
       </div>
 
+      <p className="text-muted-foreground text-[13px] leading-relaxed">
+        Votre assistant analyse vos dépenses et vous aide à mieux gérer votre budget. Le nécessaire
+        est gratuit ; Premium ajoute l&apos;anticipation et les recommandations.
+      </p>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <FeatureColumn title="Gratuit" features={FREE_FEATURES} muted />
-        <FeatureColumn title="Assistant Budget" features={PREMIUM_FEATURES} />
+        <FeatureColumn title="Premium" features={PREMIUM_FEATURES} />
       </div>
 
       {/* Panneau admin — visible uniquement pour l'administrateur. */}
