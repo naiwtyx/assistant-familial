@@ -66,9 +66,6 @@ export async function parseReceiptImages(
     model,
     temperature: 0.1,
     max_tokens: 3000,
-    // Force une sortie JSON propre — indispensable avec les modèles récents
-    // (Qwen) qui peuvent sinon préfixer leur réponse d'un raisonnement.
-    response_format: { type: "json_object" },
     messages: [
       {
         role: "user",

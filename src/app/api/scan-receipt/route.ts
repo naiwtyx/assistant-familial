@@ -8,6 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+// Signaux d'un modèle réellement indisponible/retiré côté Groq — précis pour ne
+// PAS se déclencher sur le simple mot « model » présent dans beaucoup d'erreurs.
+const MODEL_UNAVAILABLE =
+  /decommission|deprecat|not found|does not exist|no longer|invalid model|unknown model|has been (?:removed|shut)/i;
+
 const requestSchema = z.object({
   // 1 à 5 images du ticket (data URL base64, déjà redimensionnées côté client).
   images: z
@@ -59,7 +64,7 @@ export async function POST(request: Request) {
         (firstError as { error?: { message?: string } }).error?.message ??
         (firstError as { message?: string }).message ??
         "";
-      const isModelIssue = /model|decommission|not found|does not exist/i.test(msg);
+      const isModelIssue = MODEL_UNAVAILABLE.test(msg);
       if (isModelIssue && model !== FALLBACK_MODEL) {
         console.warn(`[scan-receipt] modèle « ${model} » indisponible, repli sur ${FALLBACK_MODEL}`);
         result = await parseReceiptImages(groq, FALLBACK_MODEL, parsed.data.images);
@@ -87,7 +92,7 @@ export async function POST(request: Request) {
         );
       }
       // 400/404 sur le modèle = modèle vision invalide/retiré côté Groq.
-      const isModelIssue = /model|decommission|not found|does not exist/i.test(apiMessage ?? "");
+      const isModelIssue = MODEL_UNAVAILABLE.test(apiMessage ?? "");
       return NextResponse.json(
         {
           error: isModelIssue
