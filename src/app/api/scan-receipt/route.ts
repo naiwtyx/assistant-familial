@@ -85,6 +85,19 @@ export async function POST(request: Request) {
       (error as { message?: string }).message;
 
     if (typeof status === "number") {
+      // 413 « request too large » ou quota de tokens/minute dépassé : la requête
+      // (surtout avec plusieurs photos) dépasse la limite gratuite de Groq.
+      const isTooLarge =
+        status === 413 || /too large|tokens per minute|rate_limit|per minute \(tpm\)/i.test(apiMessage ?? "");
+      if (isTooLarge) {
+        return NextResponse.json(
+          {
+            error:
+              "Le ticket est trop volumineux pour le scanner gratuit. Scanne moins de photos à la fois (une seule suffit souvent), puis réessaie.",
+          },
+          { status: 413 },
+        );
+      }
       if (status === 429) {
         return NextResponse.json(
           { error: "Limite du scanner atteinte pour le moment. Réessaie dans quelques minutes." },

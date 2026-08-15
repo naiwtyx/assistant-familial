@@ -33,8 +33,12 @@ type ReceiptMeta = { store: string | null; date: string | null; total: number | 
 const MAX_PHOTOS = 5;
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
-/** Redimensionne l'image côté client. Assez net pour lire le ticket, assez léger pour l'envoi. */
-function fileToDownscaledDataUrl(file: File, maxSize = 1600): Promise<string> {
+/**
+ * Redimensionne l'image côté client. Le nombre de tokens facturés par le modèle
+ * vision dépend de la résolution : on plafonne à 1100 px pour rester sous la
+ * limite gratuite de Groq (8000 tokens/min) tout en gardant le ticket lisible.
+ */
+function fileToDownscaledDataUrl(file: File, maxSize = 1100): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Lecture du fichier impossible."));
