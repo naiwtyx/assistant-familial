@@ -42,9 +42,10 @@ export async function POST(request: Request) {
   }
 
   const groq = new Groq({ apiKey });
-  // Modèle vision actuel de Groq. Sert aussi de repli si la variable
-  // d'environnement pointe vers un modèle retiré/décommissionné.
-  const FALLBACK_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+  // Modèle vision actuel de Groq (les modèles Llama 4 vision ont été
+  // décommissionnés le 17/06/2026). Sert aussi de repli si la variable
+  // d'environnement pointe vers un modèle retiré.
+  const FALLBACK_MODEL = "qwen/qwen3.6-27b";
   const model = process.env.GROQ_VISION_MODEL ?? FALLBACK_MODEL;
 
   try {
