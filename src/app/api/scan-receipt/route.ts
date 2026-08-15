@@ -42,15 +42,65 @@ export async function POST(request: Request) {
   }
 
   const groq = new Groq({ apiKey });
-  const model = process.env.GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct";
+  // Modèle vision actuel de Groq. Sert aussi de repli si la variable
+  // d'environnement pointe vers un modèle retiré/décommissionné.
+  const FALLBACK_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+  const model = process.env.GROQ_VISION_MODEL ?? FALLBACK_MODEL;
 
   try {
-    const result = await parseReceiptImages(groq, model, parsed.data.images);
+    let result;
+    try {
+      result = await parseReceiptImages(groq, model, parsed.data.images);
+    } catch (firstError) {
+      // Auto-réparation : si le modèle configuré est indisponible (retiré,
+      // introuvable), on réessaie une fois avec le modèle de repli à jour.
+      const msg =
+        (firstError as { error?: { message?: string } }).error?.message ??
+        (firstError as { message?: string }).message ??
+        "";
+      const isModelIssue = /model|decommission|not found|does not exist/i.test(msg);
+      if (isModelIssue && model !== FALLBACK_MODEL) {
+        console.warn(`[scan-receipt] modèle « ${model} » indisponible, repli sur ${FALLBACK_MODEL}`);
+        result = await parseReceiptImages(groq, FALLBACK_MODEL, parsed.data.images);
+      } else {
+        throw firstError;
+      }
+    }
     return NextResponse.json(result);
   } catch (error) {
     console.error("[scan-receipt] erreur:", error);
+
+    // Erreur renvoyée par l'API Groq (modèle indisponible/décommissionné, quota,
+    // authentification…). On la distingue d'un vrai souci de photo : la remonter
+    // clairement évite de faire croire à l'utilisateur que ses photos sont floues.
+    const status = (error as { status?: number }).status;
+    const apiMessage =
+      (error as { error?: { message?: string } }).error?.message ??
+      (error as { message?: string }).message;
+
+    if (typeof status === "number") {
+      if (status === 429) {
+        return NextResponse.json(
+          { error: "Limite du scanner atteinte pour le moment. Réessaie dans quelques minutes." },
+          { status: 429 },
+        );
+      }
+      // 400/404 sur le modèle = modèle vision invalide/retiré côté Groq.
+      const isModelIssue = /model|decommission|not found|does not exist/i.test(apiMessage ?? "");
+      return NextResponse.json(
+        {
+          error: isModelIssue
+            ? `Le modèle de scan « ${model} » n'est plus disponible. Mets à jour GROQ_VISION_MODEL.`
+            : `Le scanner a rencontré une erreur (${status})${apiMessage ? ` : ${apiMessage}` : ""}.`,
+        },
+        { status: 502 },
+      );
+    }
+
+    // Pas d'erreur API => réponse illisible du modèle (JSON invalide, vide…) :
+    // là, une photo plus nette peut effectivement aider.
     return NextResponse.json(
-      { error: "Impossible de lire le ticket. Réessaie avec une photo plus nette." },
+      { error: "Impossible de lire le ticket. Réessaie avec une photo plus nette et bien cadrée." },
       { status: 500 },
     );
   }
